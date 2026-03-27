@@ -91,30 +91,56 @@ function parseINSSText(rawText) {
     const equipe = [];
     let setor = '';
     let dataRef = '';
+    let servicoGlobal = '';
 
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('---')) continue;
 
-        // Expanded Sector matching: catch Unidade, Órgão Local, Setor, Agência
+        // 1. Keywords (Sector/Global Service)
         const sectorMatch = trimmed.match(/(?:Unidade|[ÓO]rg[ãa]o\s*Local|Setor|Local|Ag[êe]ncia)[:\-\s]*((?!\d{2}\/\d{2})(?:[A-ZÀ-Üa-zà-ü0-9\-\.\/\s]+))/i);
         if (sectorMatch) {
             let possibleSector = sectorMatch[1].trim();
-            // Remove common trailing junk like dates or other headers if accidentally captured
             possibleSector = possibleSector.split(/\s\d{2}\/\d{2}\/\d{4}/)[0].split(/\sCPF:/i)[0].trim();
             if (possibleSector.length > 3 && !/^(DATA|NOME|CPF|HORA|P[AÁ]GINA|ID)/i.test(possibleSector)) {
                 setor = possibleSector.toUpperCase();
             }
         }
 
-        // Date
+        const GlobalServiceMatch = trimmed.match(/(?:Servi[çc]o|Assunto|Atendimento|Tipo)[:\-\s]*([A-ZÀ-Üa-zà-ü0-9\-\.\/\s,]{3,50})/i);
+        if (GlobalServiceMatch) {
+            servicoGlobal = GlobalServiceMatch[1].trim().toUpperCase();
+        }
+
+        // 2. Date
         const dm = trimmed.match(/(\d{2}\/\d{2}\/\d{4})/);
         if (dm && !dataRef) dataRef = dm[1];
 
-        // Ensure we have a default fallback
+        // 3. Granular Data Extraction per Entry
         const activeSector = setor || 'INSS (NÃO IDENTIFICADO)';
+        const tm = trimmed.match(/(\d{2}:\d{2})/);
+        
+        let currentLineServico = servicoGlobal;
+        if (tm) {
+            const parts = trimmed.split(tm[1]);
+            let textAfterTime = parts[1] ? parts[1].trim() : '';
+            
+            // Refined cleaning: Stop at CPF, Doc, or other column headers
+            // Also stop at long numbers (Number column)
+            textAfterTime = textAfterTime
+                .split(/\sCPF/i)[0]
+                .split(/\sDOC/i)[0]
+                .split(/\sN[ÚU]MERO/i)[0]
+                .split(/\s\d{8,}/)[0] // Stop at long numeric strings (Número/Solicitação)
+                .replace(/[:\-]/g, ' ')
+                .trim();
 
-        // Strategy 1: "Data de Nascimento" anchor
+            if (textAfterTime.length > 2 && !/^(DATA|NOME|CPF|HORA|P[AÁ]GINA|ID|PAG|DOC)/i.test(textAfterTime)) {
+                currentLineServico = textAfterTime.toUpperCase();
+            }
+        }
+
+        // Strategy A: "Data de Nascimento" anchor
         if (/data\s*(de\s*)?nascimento/i.test(trimmed)) {
             const namePart = trimmed.split(/data\s*(de\s*)?nascimento/i)[0]
                 .replace(/[-–—:]/g, ' ').replace(/[^A-ZÀ-Üa-zà-ü\s]/g, '').trim().toUpperCase();
@@ -122,37 +148,65 @@ function parseINSSText(rawText) {
             if (namePart.length > 4) {
                 const cpfM = trimmed.match(/(\d{3}\.?\d{3}\.?\d{3}[-.]?\d{2})/) || trimmed.match(/(\d{11})/);
                 let cpf = cpfM ? formatCPF(cpfM[1].replace(/\D/g, '')) : 'NÃO INFORMADO';
-                const tm = trimmed.match(/(\d{2}:\d{2})/);
-                equipe.push({ nome: namePart, cpf, horario: tm ? tm[1] : 'NÃO DEF.', status: 'Agendado', setor: activeSector });
+                equipe.push({ 
+                    nome: namePart, 
+                    cpf, 
+                    horario: tm ? tm[1] : 'NÃO DEF.', 
+                    status: 'Agendado', 
+                    setor: activeSector, 
+                    servico: currentLineServico || 'GERAL' 
+                });
             }
         }
 
-        // Strategy 2: Formatted CPF
-        if (!(/data\s*(de\s*)?nascimento/i.test(trimmed))) {
+        // Strategy B: Formatted CPF
+        else {
             const cpfF = trimmed.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/);
             if (cpfF) {
                 const name = trimmed.split(cpfF[1])[0].replace(/[^A-ZÀ-Üa-zà-ü\s]/g, '').trim().toUpperCase();
                 if (name.length > 4 && !equipe.some(e => e.cpf === cpfF[1])) {
-                    const tm = trimmed.match(/(\d{2}:\d{2})/);
-                    equipe.push({ nome: name, cpf: cpfF[1], horario: tm ? tm[1] : 'NÃO DEF.', status: 'Agendado', setor: activeSector });
+                    equipe.push({ 
+                        nome: name, 
+                        cpf: cpfF[1], 
+                        horario: tm ? tm[1] : 'NÃO DEF.', 
+                        status: 'Agendado', 
+                        setor: activeSector, 
+                        servico: currentLineServico || 'GERAL' 
+                    });
                 }
             }
-        }
-
-        // Strategy 3: CAPS name + time
-        const cn = trimmed.match(/([A-ZÀ-Ü]{2,}\s+[A-ZÀ-Ü]{2,}(\s+[A-ZÀ-Ü]{2,})*)/);
-        const tp = trimmed.match(/(\d{2}:\d{2})/);
-        if (cn && cn[1].length > 5 && tp && !/^(NOME|DATA|CPF|HORA|UNID|STATUS|PAGINA|AGENDA|NASCIMENTO)/i.test(cn[1])) {
-            if (!equipe.some(e => e.nome === cn[1].trim())) {
-                equipe.push({ nome: cn[1].trim(), cpf: 'NÃO INFORMADO', horario: tp[1], status: 'Agendado', setor: activeSector });
+            // Strategy C: CAPS name + time (Only if not already captured)
+            else {
+                const cn = trimmed.match(/([A-ZÀ-Ü]{2,}\s+[A-ZÀ-Ü]{2,}(\s+[A-ZÀ-Ü]{2,})*)/);
+                if (cn && cn[1].length > 5 && tm && !/^(NOME|DATA|CPF|HORA|UNID|STATUS|PAGINA|AGENDA|NASCIMENTO|SERVICO|ASSUNTO)/i.test(cn[1])) {
+                    if (!equipe.some(e => e.nome === cn[1].trim())) {
+                        equipe.push({ 
+                            nome: cn[1].trim(), 
+                            cpf: 'NÃO INFORMADO', 
+                            horario: tm[1], 
+                            status: 'Agendado', 
+                            setor: activeSector, 
+                            servico: currentLineServico || 'GERAL' 
+                        });
+                    }
+                }
             }
         }
     }
 
     const seen = new Set();
-    const unique = equipe.filter(p => { if (seen.has(p.nome)) return false; seen.add(p.nome); return true; });
+    const unique = equipe.filter(p => { 
+        if (seen.has(p.nome)) return false; 
+        seen.add(p.nome); 
+        return true; 
+    });
 
-    return { setor: setor || 'INSS', data_referencia: dataRef || new Date().toLocaleDateString('pt-BR'), equipe: unique, total: unique.length };
+    return { 
+        setor: setor || 'INSS', 
+        data_referencia: dataRef || new Date().toLocaleDateString('pt-BR'), 
+        equipe: unique, 
+        total: unique.length 
+    };
 }
 
 function formatCPF(d) {

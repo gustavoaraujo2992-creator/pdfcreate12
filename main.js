@@ -257,6 +257,7 @@ function renderTable() {
             <td><strong>${nome}</strong><br><small style="color:#64748b;">${person.arquivo}</small></td>
             <td>${cpf}</td>
             <td><span class="badge" style="background: rgba(99,102,241,0.15); color: #818cf8;">${person.setor}</span></td>
+            <td style="font-size: 0.8rem; color: #94a3b8;">${person.servico || 'GERAL'}</td>
             <td>${person.horario}</td>
             <td><span class="badge ${statusClass}">${person.status}</span></td>
         </tr>`;
@@ -305,12 +306,13 @@ function exportCSV() {
         return matchText && matchSector;
     });
 
-    const headers = ['#', 'Nome', 'CPF', 'Setor/Unidade', 'Horário', 'Status', 'Arquivo Origem'];
+    const headers = ['#', 'Nome', 'CPF', 'Setor/Unidade', 'Serviço', 'Horário', 'Status', 'Arquivo Origem'];
     const rows = filtered.map((p, i) => [
         i + 1,
         `"${p.nome}"`,
         `"${p.cpf}"`,
         `"${p.setor}"`,
+        `"${p.servico || 'GERAL'}"`,
         p.horario,
         p.status,
         `"${p.arquivo}"`
