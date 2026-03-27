@@ -1,13 +1,26 @@
 import express from 'express';
-import multer from 'multer';
 import cors from 'cors';
-import { createWorker } from 'tesseract.js';
+import multer from 'multer';
 import { pdf } from 'pdf-to-img';
+import Tesseract from 'tesseract.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const port = process.env.PORT || 3001;
 
 app.use(cors());
+
+// Configure multer for PDF uploads (in memory)
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
 
 // ─── PDF Extract Endpoint ─────────────────────────────────────
 app.post('/api/extract', upload.single('pdf'), async (req, res) => {
@@ -25,7 +38,7 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
 
         // OCR each page image with Tesseract.js
         console.log('[Server] Iniciando OCR com Tesseract.js...');
-        const worker = await createWorker('por');
+        const worker = await Tesseract.createWorker('por');
 
         let fullText = '';
         let pageNum = 0;
@@ -53,8 +66,21 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Server] Erro:', error);
-        res.status(500).json({ error: 'Falha na extração: ' + error.message });
+        console.error('Final /extract API error:', error);
+        res.status(500).json({ error: 'Erro crítico interno no servidor ao processar o PDF.' });
+    }
+});
+
+// ─── 4. Serve Frontend (Para Hospedagem em Produção) ──────────
+// Serve os arquivos compilados do Vite (pasta dist)
+app.use(express.static(path.join(__dirname, 'dist')));
+
+app.get('*', (req, res) => {
+    const distPath = path.join(__dirname, 'dist', 'index.html');
+    if (fs.existsSync(distPath)) {
+        res.sendFile(distPath);
+    } else {
+        res.status(200).send("<h3>API do PDFNice rodando!</h3><p>Para ver o site visual, certifique-se de compilar o frontend com 'npm run build', ou rode localmente com 'npm run dev'.</p>");
     }
 });
 

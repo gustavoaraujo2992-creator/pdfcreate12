@@ -1,5 +1,7 @@
 // ─── PDFNice Frontend — Dashboard Edition (Multi-File) ────────
-const SERVER_URL = 'http://localhost:3001';
+const SERVER_URL = window.location.hostname === 'localhost' && window.location.port === '5173' 
+    ? 'http://localhost:3001' 
+    : ''; // In production, API is on the same host
 
 // ─── DOM Elements ─────────────────────────────────────────────
 const uploadView = document.getElementById('uploadView');
