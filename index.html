@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDFNice - Extrator de Escalas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- ───── UPLOAD VIEW ───── -->
+        <div id="uploadView">
+            <header>
+                <div class="logo">
+                    <div class="logo-icon">📄</div>
+                    <h1>PDF<span>Nice</span></h1>
+                </div>
+                <p class="subtitle">Extração inteligente de escalas e pessoal</p>
+            </header>
+
+            <main>
+                <section class="upload-section">
+                    <label for="fileInput" style="cursor: pointer; display: block;">
+                        <div id="dropzone" class="dropzone">
+                            <div class="upload-icon">📄</div>
+                            <h2>Arraste seu PDF aqui</h2>
+                            <p>ou clique para selecionar o arquivo</p>
+                        </div>
+                    </label>
+                    <input type="file" id="fileInput" accept="application/pdf" multiple
+                           style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
+                </section>
+
+                <!-- Loading State -->
+                <section id="loadingSection" class="loading-section" style="display:none;">
+                    <div class="loading-card">
+                        <div class="spinner"></div>
+                        <p id="statusMessage">Processando documento...</p>
+                    </div>
+                </section>
+            </main>
+
+            <footer>
+                <p>&copy; 2026 PDFNice Engine - Specialist Edition</p>
+            </footer>
+        </div>
+
+        <!-- ───── RESULTS DASHBOARD ───── -->
+        <div id="dashboardView" style="display:none;">
+            <!-- Top Bar -->
+            <div class="dashboard-topbar">
+                <div class="topbar-left">
+                    <h1 class="topbar-logo">PDF<span>Nice</span></h1>
+                </div>
+                <div class="topbar-right">
+                    <button id="exportCSVBtn" class="btn-action">📥 Exportar CSV</button>
+                    <button id="newFileBtn" class="btn-action btn-outline">📄 Novo Arquivo</button>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statTotal">0</span>
+                        <span class="stat-label">Registros</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🏢</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statSetor">—</span>
+                        <span class="stat-label">Setor / Unidade</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statData">—</span>
+                        <span class="stat-label">Data de Referência</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📄</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="statPages">0</span>
+                        <span class="stat-label">Páginas</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Bar & Filters -->
+            <div class="search-bar">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" placeholder="Pesquisar por nome ou CPF..." autocomplete="off">
+                </div>
+                <div class="filter-wrapper">
+                    <select id="sectorFilter" class="sector-select">
+                        <option value="">Todos os Setores</option>
+                    </select>
+                </div>
+                <span class="search-count" id="searchCount"></span>
+            </div>
+
+            <!-- Results Table -->
+            <div class="table-wrapper">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                            <th>Setor / Unidade</th>
+                            <th>Horário</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    </tbody>
+                </table>
+                <div id="noResults" class="no-results" style="display:none;">
+                    <p>🔍 Nenhum resultado encontrado para essa pesquisa.</p>
+                </div>
+            </div>
+
+            <!-- Raw Text Toggle -->
+            <div class="raw-section">
+                <button id="toggleRawBtn" class="btn-link">▶ Ver texto bruto extraído</button>
+                <pre id="rawOutput" style="display:none;"><code></code></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js" type="module"></script>
+</body>
+</html>
