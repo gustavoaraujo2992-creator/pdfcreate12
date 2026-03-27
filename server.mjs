@@ -75,7 +75,8 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
 // Serve os arquivos compilados do Vite (pasta dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
-app.get('*', (req, res) => {
+app.use((req, res) => {
+    if (req.method !== 'GET') return res.status(404).send('Not found');
     const distPath = path.join(__dirname, 'dist', 'index.html');
     if (fs.existsSync(distPath)) {
         res.sendFile(distPath);
