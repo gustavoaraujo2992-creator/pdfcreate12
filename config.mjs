@@ -3,7 +3,7 @@ export default {
     port: process.env.PORT || 3001,
   },
   cors: {
-    whitelist: ['http://localhost:5173'],
+    whitelist: ['http://localhost:5173', 'http://localhost:3001', 'https://pdfcreate12.onrender.com'],
   },
   ocr: {
     language: 'por',

@@ -150,6 +150,9 @@ app.get(/.*/, (req, res) => {
             : path.join(__dirname, 'index.html');
 
         if (fs.existsSync(indexPath)) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
             res.sendFile(indexPath);
         } else {
             res.status(404).send('Frontend não encontrado. Certifique-se de que o build foi realizado.');
