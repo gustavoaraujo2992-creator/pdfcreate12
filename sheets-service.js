@@ -37,17 +37,18 @@ export class SheetsService {
 
         const response = await fetch(this.scriptUrl, {
             method: 'POST',
-            mode: 'no-cors', // Apps Script requires no-cors sometimes for simple POSTs or handles CORS in doGet/doPost
+            mode: 'no-cors', // Apps Script requires no-cors for simple bypass of preflights
             headers: {
-                'Content-Type': 'application/json'
+                // Must be text/plain for no-cors to avoid preflight
+                'Content-Type': 'text/plain' 
             },
             body: JSON.stringify(payload)
         });
 
-        // Since no-cors doesn't allow reading the response, 
-        // we'll assume success if no exception is thrown, 
-        // or the user should use a proper CORS setup in Apps Script.
-        return { success: true };
+        // In no-cors mode, the response is 'opaque' (status 0).
+        // We can't see the result, but if it successfully sent, we assume OK.
+        // Network errors will still be caught by the outer try-catch in main.js
+        return { success: true, opaque: true };
     }
 
     async fetchLatest() {
