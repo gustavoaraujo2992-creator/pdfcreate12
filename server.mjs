@@ -3,7 +3,11 @@ import multer from 'multer';
 import { pdf } from 'pdf-to-img';
 import Tesseract from 'tesseract.js';
 import cors from 'cors';
-import { createRequire } from 'module';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
@@ -12,6 +16,16 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Static Files ───────────────────────────────────────────
+// Serve from 'dist' if it exists (production build), otherwise root for simple deployments
+const distPath = path.join(__dirname, 'dist');
+const fs = require('fs');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+} else {
+    app.use(express.static(__dirname));
+}
 
 // ─── Parsing Logic ───────────────────────────────────────────
 
@@ -202,7 +216,15 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
     }
 });
 
+// Serve index.html as fallback for any unknown GET routes (SPA support)
+app.get('*', (req, res) => {
+    const indexPath = fs.existsSync(path.join(distPath, 'index.html')) 
+        ? path.join(distPath, 'index.html') 
+        : path.join(__dirname, 'index.html');
+    res.sendFile(indexPath);
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`🟢 PDFNice Server: http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🟢 PDFNice Server: http://0.0.0.0:${PORT}`);
 });
