@@ -12,6 +12,8 @@ const __dirname = path.dirname(__filename);
 
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
+const fs = require('fs');
+
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -19,12 +21,13 @@ app.use(cors());
 app.use(express.json());
 
 // ─── Static Files ───────────────────────────────────────────
-// Serve from 'dist' if it exists (production build), otherwise root for simple deployments
-const distPath = path.join(__dirname, 'dist');
-const fs = require('fs');
+const distPath = path.resolve(__dirname, 'dist');
+
 if (fs.existsSync(distPath)) {
+    console.log(`[Server] Pasta 'dist' encontrada em: ${distPath}`);
     app.use(express.static(distPath));
 } else {
+    console.log(`[Server] Pasta 'dist' não encontrada. Servindo da raiz: ${__dirname}`);
     app.use(express.static(__dirname));
 }
 
@@ -217,12 +220,22 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
     }
 });
 
-// Serve index.html as fallback for any unknown GET routes (SPA support)
-app.get('*', (req, res) => {
-    const indexPath = fs.existsSync(path.join(distPath, 'index.html')) 
-        ? path.join(distPath, 'index.html') 
-        : path.join(__dirname, 'index.html');
-    res.sendFile(indexPath);
+// Serve index.html as fallback for any unknown GET routes (Express 5 compatible wildcard)
+app.get('/*', (req, res) => {
+    try {
+        const indexPath = fs.existsSync(path.join(distPath, 'index.html')) 
+            ? path.join(distPath, 'index.html') 
+            : path.join(__dirname, 'index.html');
+        
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            res.status(404).send('Frontend não encontrado. Certifique-se de que o build foi realizado.');
+        }
+    } catch (err) {
+        console.error('[Server] Erro ao servir index.html:', err);
+        res.status(500).send('Erro interno ao carregar o frontend.');
+    }
 });
 
 const PORT = process.env.PORT || 3001;
