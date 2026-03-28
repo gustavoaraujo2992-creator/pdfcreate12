@@ -47,8 +47,17 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
             if (data && data.text && data.text.trim().length > 200) {
                fullText = data.text;
                pageNum = data.numpages || 1;
-               isNativeText = true;
-               console.log(`[Server] Texto nativo extraído com sucesso: ${fullText.length} chars, ${pageNum} páginas`);
+               
+               // Tentativa Especulativa: o texto tem +200 chars, mas pode ser lixo vetorial mal formatado
+               const tryParsed = parseINSSText(fullText);
+               if (tryParsed.equipe.length > 0) {
+                   isNativeText = true;
+                   console.log(`[Server] Texto nativo validado: ${fullText.length} chars, ${pageNum} pág, ${tryParsed.equipe.length} registros!`);
+               } else {
+                   console.log('[Server] Texto vetorial extraído não possui registros padronizados (0 lidos). Possível divergência de layout nativo. Acionando Fallback OCR...');
+                   isNativeText = false;
+                   fullText = ''; // Reseta para o OCR capturar tudo novamente
+               }
             } else {
                console.log('[Server] Texto nativo insuficiente (<200 chars). Arquivo deve ser PDF Escaneado/Imagem.');
             }
