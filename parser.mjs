@@ -93,38 +93,53 @@ function dedup(arr) {
 //  FORMAT 1 — INSS SIMPLES
 // ──────────────────────────────────────────────────────────────
 function parseINSSSimples(text) {
-    const lines  = text.split('\n');
     const equipe = [];
-    let sector   = extractSector(text);
+    let sector = extractSector(text);
+    if (sector === 'DESCONHECIDO') sector = 'INSS';
     const dateRef = extractDate(text);
-    const RE_ROW = /^(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+(\d{3}\.\*{3}\.\*{3}-\d{2})\s*(.*)/;
 
-    // Join continuation lines (name can overflow to next line)
-    const joined = [];
-    let cur = null;
-    for (const line of lines) {
-        const t = line.trim();
-        if (!t || t.length < 2) continue;
-        if (RE_DATE_START.test(t)) { 
-            if (cur) joined.push(cur); 
-            cur = t; 
-        } else if (cur) { 
-            // Check if the line is likely a continuation of the name (e.g., doesn't contain time or other structured data)
-            if (!RE_TIME_SIMPLE.test(t) && !NOISE_WORDS.test(t.split(' ')[0])) {
-                cur += ' ' + t; 
+    const tokens = [];
+    const tokRe = /\S+/g;
+    let tm;
+    while ((tm = tokRe.exec(text)) !== null) tokens.push({ w: tm[0], pos: tm.index });
+
+    const cpfRe = /(\d{3}\.\*{3}\.\*{3}-\d{2})/g;
+    let cm;
+    while ((cm = cpfRe.exec(text)) !== null) {
+        const cpfStr = cm[1];
+        const cpfPos = cm.index;
+        const cpfIdx = tokens.findIndex(t => t.pos === cpfPos);
+        if (cpfIdx < 0) continue;
+
+        // In Simples, Name is usually AFTER the Masked CPF
+        const nameWords = [];
+        for (let i = cpfIdx + 1; i < tokens.length && i < cpfIdx + 15; i++) {
+            const word = tokens[i].w.toUpperCase();
+            // Stop if we hit a date or time or next CPF
+            if (RE_DATE_START.test(word) || /^\d{2}:\d{2}/.test(word) || word.includes('***')) break;
+            if (NAME_STOP_WORDS.has(word)) break;
+            nameWords.push(tokens[i].w);
+        }
+
+        let name = nameWords.join(' ').replace(/[^\wÀ-ÿ\s'\-]/gu, ' ').replace(/\s{2,}/g, ' ').trim();
+        if (name.length < 2) name = 'NÃO IDENTIFICADO';
+
+        // Extract Time (usually BEFORE the Masked CPF)
+        let time = '00:00';
+        for (let i = cpfIdx - 1; i >= 0 && i >= cpfIdx - 5; i--) {
+            const tM = tokens[i].w.match(/(\d{2}:\d{2})(?::\d{2})?/);
+            if (tM) {
+                time = tM[1];
+                break;
             }
         }
-    }
-    if (cur) joined.push(cur);
-
-    for (const entry of joined) {
-        const m = entry.match(RE_ROW);
-        if (!m) continue;
-        const [, date, time, cpf, nameRaw] = m;
-
-        let name = nameRaw.replace(/\t/g, ' ').replace(/\s{2,}/g, ' ')
-                          .replace(/[^\wÀ-ÿ\s'\-]/gu, ' ').replace(/\s{2,}/g, ' ').trim();
-        if (name.length < 2) name = 'NÃO IDENTIFICADO';
+        
+        // Sometimes time is right after CPF if column ordering is weird
+        if (time === '00:00') {
+            const forwardSlice = text.slice(cpfPos + cpfStr.length, cpfPos + cpfStr.length + 100);
+            const forwardM = forwardSlice.match(/(\d{2}:\d{2})(?::\d{2})?/);
+            if (forwardM) time = forwardM[1];
+        }
 
         let service = 'GERAL';
         const svcM  = name.match(SERVICE_KW);
@@ -133,8 +148,7 @@ function parseINSSSimples(text) {
             if (p > 3) { service = svcM[0].toUpperCase(); name = name.slice(0, p).trim(); }
         }
 
-        if (sector === 'DESCONHECIDO') sector = 'INSS';
-        equipe.push({ nome: name.toUpperCase(), cpf: formatCPF(cpf), horario: time, status: 'Agendado', setor: sector, servico: service, data: date });
+        equipe.push({ nome: name.toUpperCase(), cpf: cpfStr, horario: time, status: 'Agendado', setor: sector, servico: service, data: dateRef });
     }
     return { equipe, dateRef, sector };
 }
@@ -203,7 +217,13 @@ function parseSEAP(text) {
     for (const row of flat) {
         const m = row.match(RE_ROW);
         if (!m) continue;
-        const name = m[1].trim().replace(/\s{2,}/g, ' ');
+        
+        let name = m[1].trim().replace(/\s{2,}/g, ' ');
+        // Clean phone numbers: (61) 98888-8888 or 6199999999
+        name = name.replace(/(?:\(?0?\d{2}\)?\s*)?9?\d{4}-?\d{4}\b/g, '').trim();
+        // Clean remaining random digits
+        name = name.replace(/[\d\(\)\-\.]+$/g, '').trim();
+
         const time = m[3];
         equipe.push({ nome: name.toUpperCase(), cpf: 'NÃO INFORMADO', horario: time, status: 'Agendado', setor: sector, servico: 'VISITA', data: m[2] || dateRef });
     }
