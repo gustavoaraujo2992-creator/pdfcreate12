@@ -1,12 +1,12 @@
 import express from 'express';
 import multer from 'multer';
-import pdfParse from 'pdf-parse';
 import { pdf } from 'pdf-to-img';
 import Tesseract from 'tesseract.js';
 import cors from 'cors';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
