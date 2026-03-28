@@ -31,7 +31,32 @@ if (fs.existsSync(distPath)) {
     app.use(express.static(__dirname));
 }
 
-// ─── Parsing Logic ───────────────────────────────────────────
+// ─── Shared Patterns ─────────────────────────────────────────
+const RE_ENTRY = /^(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}:\d{2})\s+(\d{3}\.\*{3}\.\*{3}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}|\d{3}\*{3}\*{3}\d{2})\s*(.*)/;
+const RE_DATE_AT_START = /^\d{2}\/\d{2}\/\d{4}/;
+const RE_CPF_ANYWHERE = /(\d{3}[.*]*\d{3}[.*]*\d{3}[-.*]*\d{2})/;
+const RE_TIME = /\b(\d{1,2}:\d{2})\b/;
+const RE_SECTOR = /(?:Unidade|Órgão\s*Local|Org.o\s*Local|Setor|Local|Agência|Agencia)[:\-\s]+([\w\s\/\-\.]+)/i;
+
+const NOISE_WORDS = /^(Data|Hora|CPF|Nome|Serviço|Servico|Atendimento|Página|Pagina|Status|Agendamento|ID|NB|Número|Numero|Doc|Tipo|Assunto)$/i;
+const SERVICE_KEYWORDS = /cumprimento|exig[êe]ncia|concess[aã]o|revis[aã]o|recurso|habilitação|perícia|pericia|benefício|beneficio|salário|salario|aposentadoria|auxílio|auxilio|pensão|pensao|abono/i;
+
+function cleanName(raw) {
+    // Remove numbers, punctuation (except hyphens inside names), tab, normalize spaces
+    return raw.replace(/\t/g, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .replace(/[^\wÀ-ÿ\s'\-]/g, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .trim();
+}
+
+function isJunkLine(line) {
+    if (!line || line.length < 2) return true;
+    if (/^\s*[-–—_=*]{3,}/.test(line)) return true;          // separator lines
+    if (/^\d+$/.test(line.trim())) return true;              // pure numbers
+    if (NOISE_WORDS.test(line.trim())) return true;          // header words alone
+    return false;
+}
 
 function formatCPF(d) {
     const limpo = d.replace(/\D/g, '');
@@ -40,114 +65,142 @@ function formatCPF(d) {
 }
 
 function parseINSSText(rawText) {
-    const lines = rawText.split('\n');
+    // Normalize: replace \r\n and \r with \n, remove BOM/null bytes
+    const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\0/g, '');
+    const lines = text.split('\n');
+
     const equipe = [];
     let sector = '';
     let dateRef = '';
-    let globalService = '';
 
-    // Step 1: Detect Sector and Date from headers
-    for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    // ── Step 1: Extract header metadata (sector, date) ───────
+    for (let i = 0; i < Math.min(lines.length, 20); i++) {
         const line = lines[i].trim();
-        const dateM = line.match(/(\d{2}\/\d{2}\/\d{4})/);
-        if (dateM && !dateRef) dateRef = dateM[1];
-
-        const sectorM = line.match(/(?:Unidade|[ÓO]rg[ãa]o\s*Local|Setor|Local|Ag[êe]ncia)[:\-\s]*((?!\d{2}\/\d{2})(?:[A-ZÀ-Üa-zà-ü0-9\-\.\/\s]+))/i);
-        if (sectorM) {
-            let possible = sectorM[1].trim().split(/\s\d{2}\/\d{2}/)[0].split(/\sCPF:/i)[0].trim();
-            if (possible.length > 3 && !/^(DATA|NOME|CPF|HORA)/i.test(possible)) {
-                sector = possible.toUpperCase();
+        if (!dateRef) {
+            const dm = line.match(/(\d{2}\/\d{2}\/\d{4})/);
+            if (dm) dateRef = dm[1];
+        }
+        const sm = line.match(RE_SECTOR);
+        if (sm) {
+            const candidate = sm[1].trim().split(/\s+\d{2}\/\d{2}/)[0].trim();
+            if (candidate.length > 3 && !NOISE_WORDS.test(candidate)) {
+                sector = candidate.toUpperCase();
             }
         }
     }
 
-    // Step 2: Dynamic Sweep per row
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line || line.startsWith('---') || line.length < 10) continue;
+    // ── Step 2: Pre-join multi-line entries ──────────────────
+    // Strategy: Build a list of "entry lines" by joining continuation lines
+    // A continuation line is one that does NOT start with a date
+    const entryLines = [];
+    let current = null;
 
-        // Anchor Pattern 1: CPF (Crucial)
-        // Matches: 123.456.789-10 or 12345678910 or 123.***.***-10
-        const cpfPattern = /(\d{3}[.\s*]*\d{3}[.\s*]*\d{3}[-.\s*]*\d{2})/g;
-        const timePattern = /(\d{1,2}:\d{2})/;
-        
-        const cpfMatch = line.match(cpfPattern);
-        
-        if (cpfMatch) {
-            const cpf = cpfMatch[0];
-            const timeMatch = line.match(timePattern);
-            const time = timeMatch ? timeMatch[0] : '00:00';
-            
-            // Now the tricky part: Split the line into segments to find the NAME and SERVICE
-            // Usually: [NAME] [SERVICE] [CPF] [OTHER] or [NAME] [CPF] [TIME] etc.
-            
-            // Remove the CPF and Time from the line to see what's left
-            let content = line.replace(cpf, ' [CPF] ').replace(time, ' [TIME] ');
-            
-            // Heuristic for NAME: Usually at the start IF it contains 2+ words in CAPS
-            // Heuristic for SERVICE: Usually between Name and CPF/Time, or at the end
-            
-            let parts = content.split(/\[CPF\]|\[TIME\]/);
-            let name = 'NÃO IDENTIFICADO';
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (isJunkLine(trimmed)) continue;
+
+        if (RE_DATE_AT_START.test(trimmed)) {
+            // This starts a new entry
+            if (current !== null) entryLines.push(current);
+            current = trimmed;
+        } else if (current !== null) {
+            // This is a continuation of the previous entry (name overflow)
+            // Stop joining if it looks like a new section or header
+            if (!NOISE_WORDS.test(trimmed) && !RE_SECTOR.test(trimmed)) {
+                current = current + ' ' + trimmed;
+            } else {
+                entryLines.push(current);
+                current = null;
+            }
+        } else {
+            // Format B: line without date — could have CPF + name without date prefix
+            if (RE_CPF_ANYWHERE.test(trimmed)) {
+                entryLines.push(trimmed);
+            }
+        }
+    }
+    if (current !== null) entryLines.push(current);
+
+    // ── Step 3: Parse each joined entry ──────────────────────
+    for (const entry of entryLines) {
+        const matchA = entry.match(RE_ENTRY);
+
+        if (matchA) {
+            // Format A: DATE TIME CPF [NAME...]
+            const [, date, time, cpf, nameRaw] = matchA;
+            if (!dateRef) dateRef = date;
+
+            let name = cleanName(nameRaw);
+
+            // Name must have at least 2 chars; if empty, mark as unknown
+            if (name.length < 2) name = 'NÃO IDENTIFICADO';
+
+            // Detect if name contains service keywords
             let service = 'GERAL';
-            
-            // Clean parts
-            let cleanParts = parts.map(p => p.replace(/[:\-]/g, ' ').trim()).filter(p => p.length > 2);
-            
-            if (cleanParts.length > 0) {
-                // The longest part with multiple capitalized words is likely the Name
-                const capsWords = cleanParts.filter(p => /([A-ZÀ-Ü]{3,}\s+[A-ZÀ-Ü]{2,})/.test(p));
-                if (capsWords.length > 0) {
-                    name = capsWords[0].toUpperCase();
-                    // If multiple parts, the other one is likely the service
-                    if (cleanParts.length > 1) {
-                        service = cleanParts.find(p => p !== capsWords[0]) || 'GERAL';
-                    }
-                } else {
-                    // Fallback: use first part as name
-                    name = cleanParts[0].toUpperCase();
-                    if (cleanParts.length > 1) service = cleanParts[1];
+            const serviceM = name.match(SERVICE_KEYWORDS);
+            if (serviceM) {
+                // Split at the service keyword to isolate real name from service desc
+                const parts = name.split(serviceM[0]);
+                if (parts[0].trim().length > 3) {
+                    name = parts[0].trim();
+                    service = serviceM[0].trim().toUpperCase();
                 }
             }
-
-            // Refine service (remove common noises)
-            service = service.replace(/\s\d{8,}/, '').replace(/Data de Nascimento/i, '').trim().toUpperCase();
-            if (service.length < 3 || /^(CPF|DATA|DOC|NB|ID|NASC)/i.test(service)) service = 'GERAL';
 
             equipe.push({
-                nome: name.replace(/[^A-ZÀ-Ü\s]/g, '').trim(),
-                cpf: cpf.includes('*') ? `OCULTO (${cpf})` : formatCPF(cpf),
+                nome: name.toUpperCase(),
+                cpf: formatCPF(cpf),
                 horario: time,
-                status: 'Agendado',
+                status: cpf.includes('*') ? 'Agendado (CPF Oculto)' : 'Agendado',
                 setor: sector || 'INSS',
-                servico: service
+                servico: service,
+                data: date
             });
-        }
-        else {
-            // Backup Strategy: "Data de Nascimento" anchor (covers multiline or displaced records)
-            if (/data\s*(de\s*)?nascimento/i.test(line)) {
-                const parts = line.split(/data\s*(de\s*)?nascimento/i);
-                const nameCandidate = parts[0].replace(/[-–—:]/g, ' ').replace(/[^A-ZÀ-Üa-zà-ü\s]/g, '').trim().toUpperCase();
-                
-                if (nameCandidate.length > 5) {
-                    const timeMatch = line.match(timePattern);
-                    const time = timeMatch ? timeMatch[0] : '00:00';
-                    equipe.push({
-                        nome: nameCandidate,
-                        cpf: 'NÃO INFORMADO',
-                        horario: time,
-                        status: 'Agendado',
-                        setor: sector || 'INSS',
-                        servico: 'GERAL'
-                    });
-                }
+
+        } else {
+            // Format B: No date prefix. Look for CPF anywhere
+            const cpfM = entry.match(RE_CPF_ANYWHERE);
+            if (!cpfM) continue;
+
+            const cpf = cpfM[1];
+
+            // Split around CPF to get what's before and after
+            const [before, after] = entry.split(cpf);
+
+            const timeM = entry.match(RE_TIME);
+            const time = timeM ? timeM[1] : '00:00';
+
+            // Determine name: usually before CPF (cleaned from date/time)
+            let nameRaw = (before || '').replace(RE_TIME, '').replace(RE_DATE_AT_START, '').replace(/[:\-]/g, ' ').trim();
+            let name = cleanName(nameRaw);
+
+            // Detect service in the "after" part
+            let service = 'GERAL';
+            if (after) {
+                const serviceM = after.match(SERVICE_KEYWORDS);
+                if (serviceM) service = serviceM[0].trim().toUpperCase();
+            }
+
+            if (name.length > 3) {
+                equipe.push({
+                    nome: name.toUpperCase(),
+                    cpf: formatCPF(cpf),
+                    horario: time,
+                    status: 'Agendado',
+                    setor: sector || 'INSS',
+                    servico: service,
+                    data: dateRef
+                });
             }
         }
     }
 
+    // ── Step 4: Remove duplicates by CPF ─────────────────────
     const seen = new Set();
     const unique = equipe.filter(p => {
-        const key = p.nome + (p.cpf === 'NÃO INFORMADO' ? Math.random() : p.cpf);
+        const key = p.cpf + p.horario;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -155,8 +208,9 @@ function parseINSSText(rawText) {
 
     return {
         setor: sector || 'INSS',
-        dataRef: dateRef || new Date().toLocaleDateString('pt-BR'),
-        equipe: unique
+        data_referencia: dateRef || new Date().toLocaleDateString('pt-BR'),
+        equipe: unique,
+        total: unique.length
     };
 }
 
