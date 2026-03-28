@@ -88,6 +88,7 @@
                 </div>
                 <div class="topbar-right">
                     <button id="addFileBtn" class="btn-action">➕ Adicionar PDF</button>
+                    <button id="addPersonBtn" class="btn-action btn-teal">👤 Adicionar Pessoa</button>
                     <button id="exportCSVBtn" class="btn-action">📥 Exportar CSV</button>
                     <button id="newFileBtn" class="btn-action btn-outline">📄 Limpar Tudo</button>
                     <button id="logoutBtn" class="btn-action btn-danger">🚪 Sair</button>
@@ -218,6 +219,39 @@
                     <div class="modal-actions">
                         <button type="button" id="cancelEdit" class="btn-outline">Cancelar</button>
                         <button type="submit" class="btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ───── ADD PERSON MODAL ───── -->
+        <div id="addPersonModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h3>👤 Adicionar Pessoa Manualmente</h3>
+                <form id="addPersonForm">
+                    <div class="input-group">
+                        <label>Nome Completo <span style="color:#ef4444">*</span></label>
+                        <input type="text" id="addName" placeholder="Ex: JOÃO DA SILVA" required autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>CPF</label>
+                        <input type="text" id="addCPF" placeholder="000.000.000-00" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Horário</label>
+                        <input type="text" id="addTime" placeholder="08:00" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Setor / Unidade</label>
+                        <input type="text" id="addSector" placeholder="Ex: CEILÂNDIA" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Serviço / Atendimento</label>
+                        <input type="text" id="addService" placeholder="Ex: Atendimento Simplificado" autocomplete="off">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" id="cancelAddPerson" class="btn-outline">Cancelar</button>
+                        <button type="submit" class="btn-primary">✅ Adicionar à Lista</button>
                     </div>
                 </form>
             </div>
