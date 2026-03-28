@@ -1,0 +1,24 @@
+﻿
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+TESTE 1 ÔÇö Formato INSS (CPF mascarado)
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+ÔåÆ Formato INSS
+Total extra├¡do: 302 registros | Setor:  | Data: 27/03/2026
+Primeiros 5 nomes:
+  1. [07:30] JOSE ALVES DE SOUSA | CPF: 372.***.***-15
+  2. [07:30] VITOR CARVALHO DE OLIVEIRA | CPF: 070.***.***-03
+  3. [07:30] ITALO GABRIEL MARQUES PEREIRA | CPF: 083.***.***-13
+  4. [07:40] ISAC MIGUEL DE OLIVEIRA NETO | CPF: 059.***.***-73
+  5. [07:40] RAY KAUAN MACEDO DA SILVA | CPF: 096.***.***-48
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+TESTE 2 ÔÇö Formato Detran (CPF completo, nome antes)
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+ÔåÆ Formato Detran
+Total extra├¡do: 5 registros | Setor: NA HORA CEIL | Data: 27/03/2026
+Nomes encontrados:
+  1. [07:30] WALDIR DOS OLIVEIRA SANTOS | CPF: 036.282.061-97 | Servi├ºo: VE├ìCULO
+  2. [08:00] RAFAEL PIRES SOUSA | CPF: 029.894.471-56 | Servi├ºo: VE├ìCULO
+  3. [08:30] FERNANDA GOMES DAMACENA | CPF: 024.878.801-98 | Servi├ºo: VE├ìCULO
+  4. [09:30] DE DANIEL OLIVEIRA BARROSO | CPF: 056.816.151-38 | Servi├ºo: VE├ìCULO
+  5. [11:30] CAIO FERNANDO VIEIRA SOARES RODRIGUES | CPF: 040.163.801-46 | Servi├ºo: VE├ìCULO
