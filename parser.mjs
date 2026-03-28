@@ -20,7 +20,7 @@
 
 // ─── Shared Utilities ────────────────────────────────────────
 const RE_DATE_START  = /^\d{2}\/\d{2}\/\d{4}/;
-const RE_TIME_SIMPLE = /\b(\d{2}:\d{2})(?::\d{2})?\b/;
+const RE_TIME_SIMPLE = /(\d{2}:\d{2})(?::\d{2})?/;
 const NOISE_WORDS    = /^(Data|Hora|CPF|Nome|Tipo|Serviço|Servico|Atendimento|Página|Pagina|Status|Agendamento)$/i;
 
 const SERVICE_KW = /cumprimento\s+de\s+exig[êe]ncia|atendimento\s+simplificado|carta\s+de\s+concess[aã]o|carta\s+de\s+benefício|extrato\s+para\s+imposto|concess[aã]o\s+de\s+benefício|revisão\s+de\s+benefício|revis[aã]o|recurso|habilitação|habilitacao|vistoria|licenciamen|transferên|CNH|aposentadoria|auxílio|pensão|abono|perícia/gi;
@@ -245,7 +245,7 @@ function parseDetran(text) {
         if (name.length < 4 || name.split(' ').length < 2) continue;
 
         // Time after CPF
-        const afterCPF = text.slice(cpfPos + cpfStr.length, cpfPos + cpfStr.length + 120);
+        const afterCPF = text.slice(cpfPos + cpfStr.length, cpfPos + cpfStr.length + 200);
         const timeM    = afterCPF.match(RE_TIME_SIMPLE);
         const time     = timeM ? timeM[1] : '00:00';
 
