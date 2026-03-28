@@ -18,6 +18,7 @@ const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
 const loadingSection = document.getElementById('loadingSection');
 const statusMessage = document.getElementById('statusMessage');
+const defaultSectorInput = document.getElementById('defaultSectorInput'); // New
 
 // Dashboard elements
 const searchInput = document.getElementById('searchInput');
@@ -189,6 +190,7 @@ async function processFiles(files) {
         return;
     }
 
+    const manualSector = defaultSectorInput.value.trim().toUpperCase();
     loadingSection.style.display = 'block';
     const isIncremental = currentData.equipe.length > 0;
     if (!isIncremental) {
@@ -224,7 +226,9 @@ async function processFiles(files) {
                 const sectorFromName = getSectorFromFilename(file.name);
 
                 for (const p of data.parsed.equipe) {
-                    const finalSector = sectorFromName || p.setor || data.parsed.setor || 'NA HORA CEILÂNDIA';
+                    // Precedence: 1. Manual User Input (highest), 2. Filename Extraction, 3. PDF Content data, 4. Default
+                    const finalSector = manualSector || sectorFromName || p.setor || data.parsed.setor || 'NA HORA CEILÂNDIA';
+                    
                     currentData.setores.add(finalSector);
                     currentData.equipe.push({
                         ...p,
@@ -256,6 +260,11 @@ async function processFiles(files) {
 function showDashboard() {
     uploadView.style.display = 'none';
     dashboardView.style.display = 'block';
+
+    // Pre-fill metadata sector if manual sector was used
+    if (defaultSectorInput.value.trim()) {
+        sheetSectorInput.value = defaultSectorInput.value.trim().toUpperCase();
+    }
 
     updateStatsBar();
 

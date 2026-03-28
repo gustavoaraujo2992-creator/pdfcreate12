@@ -56,6 +56,13 @@
                     </label>
                     <input type="file" id="fileInput" accept="application/pdf" multiple
                            style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
+                    
+                    <div class="pre-upload-options">
+                        <div class="input-group">
+                            <label for="defaultSectorInput">Setor de Destino (Opcional):</label>
+                            <input type="text" id="defaultSectorInput" placeholder="Ex: CEILÂNDIA - MANHÃ">
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Loading State -->
@@ -81,7 +88,6 @@
                 </div>
                 <div class="topbar-right">
                     <button id="addFileBtn" class="btn-action">➕ Adicionar PDF</button>
-                    <button id="syncSheetsBtn" class="btn-action btn-success">☁️ Sincronizar Google Sheets</button>
                     <button id="exportCSVBtn" class="btn-action">📥 Exportar CSV</button>
                     <button id="newFileBtn" class="btn-action btn-outline">📄 Limpar Tudo</button>
                     <button id="logoutBtn" class="btn-action btn-danger">🚪 Sair</button>
@@ -101,6 +107,9 @@
                 <div class="input-group-inline">
                     <label>Setor:</label>
                     <input type="text" id="sheetSectorInput" placeholder="Ex: Ceilândia - Manhã">
+                </div>
+                <div class="metadata-actions">
+                    <button id="syncSheetsBtn" class="btn-action btn-success btn-lg">💾 Gravar na Planilha</button>
                 </div>
             </div>
 
