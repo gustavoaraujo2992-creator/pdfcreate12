@@ -220,8 +220,8 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
     }
 });
 
-// Serve index.html as fallback for any unknown GET routes (Express 5 compatible wildcard)
-app.get('/*', (req, res) => {
+// Serve index.html as fallback for any unknown GET routes (Regex for Express 5 compatibility)
+app.get(/.*/, (req, res) => {
     try {
         const indexPath = fs.existsSync(path.join(distPath, 'index.html')) 
             ? path.join(distPath, 'index.html') 
@@ -230,7 +230,7 @@ app.get('/*', (req, res) => {
         if (fs.existsSync(indexPath)) {
             res.sendFile(indexPath);
         } else {
-            res.status(404).send('Frontend não encontrado. Certifique-se de que o build foi realizado.');
+            res.status(404).send('Frontend não encontrado. Certifique-se de que o build foi realizado e a pasta "dist" existe.');
         }
     } catch (err) {
         console.error('[Server] Erro ao servir index.html:', err);
