@@ -6,6 +6,10 @@ import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,30 +35,48 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
     }
 
     try {
-        // Convert PDF pages to images using pdf-to-img
-        console.log('[Server] Convertendo PDF em imagens...');
         const pdfBuffer = req.file.buffer;
-        const pages = await pdf(pdfBuffer, { scale: 2.0 });
-
-        // OCR each page image with Tesseract.js
-        console.log('[Server] Iniciando OCR com Tesseract.js...');
-        const worker = await Tesseract.createWorker('por');
-
         let fullText = '';
         let pageNum = 0;
+        let isNativeText = false;
 
-        for await (const pageImage of pages) {
-            pageNum++;
-            console.log(`[OCR] Processando página ${pageNum}...`);
-            const { data: { text } } = await worker.recognize(pageImage);
-            fullText += `--- PÁGINA ${pageNum} ---\n${text}\n\n`;
-            console.log(`[OCR] Página ${pageNum}: ${text.length} chars extraídos`);
+        // 1. Try Native PDF Text Extraction First
+        try {
+            console.log('[Server] Tentando extração de texto nativo (mais rápido)...');
+            const data = await pdfParse(pdfBuffer);
+            if (data && data.text && data.text.trim().length > 200) {
+               fullText = data.text;
+               pageNum = data.numpages || 1;
+               isNativeText = true;
+               console.log(`[Server] Texto nativo extraído com sucesso: ${fullText.length} chars, ${pageNum} páginas`);
+            } else {
+               console.log('[Server] Texto nativo insuficiente (<200 chars). Arquivo deve ser PDF Escaneado/Imagem.');
+            }
+        } catch (e) {
+            console.warn('[Server] Falha na extração nativa, caindo para OCR. Erro:', e.message);
         }
 
-        await worker.terminate();
-        console.log(`[Server] OCR completo. Total: ${fullText.length} chars`);
+        // 2. Fallback for OCR (Tesseract)
+        if (!isNativeText) {
+            console.log('[Server] Convertendo PDF em imagens...');
+            const pages = await pdf(pdfBuffer, { scale: 2.0 });
 
-        // Parse the OCR text
+            console.log('[Server] Iniciando OCR com Tesseract.js...');
+            const worker = await Tesseract.createWorker('por');
+
+            for await (const pageImage of pages) {
+                pageNum++;
+                console.log(`[OCR] Processando página ${pageNum}...`);
+                const { data: { text } } = await worker.recognize(pageImage);
+                fullText += `--- PÁGINA ${pageNum} ---\n${text}\n\n`;
+                console.log(`[OCR] Página ${pageNum}: ${text.length} chars extraídos`);
+            }
+
+            await worker.terminate();
+            console.log(`[Server] OCR completo. Total: ${fullText.length} chars`);
+        }
+
+        // Parse the text
         const parsed = parseINSSText(fullText);
         console.log(`[Server] Resultado: ${parsed.equipe.length} registros encontrados`);
 
@@ -93,9 +115,50 @@ function parseINSSText(rawText) {
     let dataRef = '';
     let servicoGlobal = '';
 
-    for (const line of lines) {
+    // If first line has date, extract it
+    const dateHeaderMatch = lines[0] && lines[0].match(/(\d{2}\/\d{2}\/\d{4})/);
+    if (dateHeaderMatch) {
+       dataRef = dateHeaderMatch[1];
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('---')) continue;
+
+        // NEW FORMAT: 27/03/2026 07:30 372.***.***-15 JOSE ALVES DE (SOUSA na linha seguinte) ou tudo colado
+        const novoFormatoMatch = trimmed.match(/^(\d{2}\/\d{2}\/\d{4})\s*(\d{2}:\d{2})\s*(\d{3}\.[*\d]{3}\.[*\d]{3}-\d{2})\s*(.+)$/);
+        
+        if (novoFormatoMatch) {
+            let [, data, hora, cpf, namePart] = novoFormatoMatch;
+            dataRef = dataRef || data;
+            
+            // Check the next line to see if it's a continuation of the name
+            let j = i + 1;
+            let currentLineServico = 'GERAL';
+            
+            // Name continuation: next line doesn't start with a date or another pattern
+            while (j < lines.length && lines[j].trim() !== '') {
+               let nextTrimmed = lines[j].trim();
+               // If next line looks like a new entry, break
+               if (/^\d{2}\/\d{2}\/\d{4}/.test(nextTrimmed)) break;
+               if (/^Data\s+Hora/.test(nextTrimmed)) break;
+               
+               namePart += " " + nextTrimmed;
+               i = j; // Advance outer loop
+               j++;
+            }
+            
+            equipe.push({
+                nome: namePart.toUpperCase(),
+                cpf: cpf.includes('*') ? 'OCULTO (' + cpf + ')' : formatCPF(cpf.replace(/\D/g, '')),
+                horario: hora,
+                status: 'Agendado',
+                setor: setor || 'AGENDAMENTOS GERAL',
+                servico: currentLineServico
+            });
+            continue;
+        }
 
         // 1. Keywords (Sector/Global Service)
         const sectorMatch = trimmed.match(/(?:Unidade|[ÓO]rg[ãa]o\s*Local|Setor|Local|Ag[êe]ncia)[:\-\s]*((?!\d{2}\/\d{2})(?:[A-ZÀ-Üa-zà-ü0-9\-\.\/\s]+))/i);

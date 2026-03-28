@@ -1,0 +1,8 @@
+
+🟢 PDFNice Server rodando em http://localhost:3001
+   POST http://localhost:3001/api/extract
+
+[Server] PDF recebido: agendamentos.pdf 21270 bytes
+[Server] Tentando extração de texto nativo (mais rápido)...
+[Server] Texto nativo extraído com sucesso: 16775 chars, 11 páginas
+[Server] Resultado: 301 registros encontrados

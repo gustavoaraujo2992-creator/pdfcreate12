@@ -19,6 +19,7 @@ const tableBody = document.getElementById('tableBody');
 const noResults = document.getElementById('noResults');
 const toggleRawBtn = document.getElementById('toggleRawBtn');
 const rawOutput = document.getElementById('rawOutput');
+const addFileBtn = document.getElementById('addFileBtn');
 const exportCSVBtn = document.getElementById('exportCSVBtn');
 const newFileBtn = document.getElementById('newFileBtn');
 
@@ -51,13 +52,15 @@ dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
-        processFiles(Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf'));
+        const validFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+        processFiles(validFiles);
     }
 });
 
 fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
-        processFiles(Array.from(e.target.files).filter(f => f.type === 'application/pdf'));
+        const validFiles = Array.from(e.target.files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+        processFiles(validFiles);
     }
 });
 
@@ -74,6 +77,10 @@ toggleRawBtn.addEventListener('click', () => {
     const isHidden = rawOutput.style.display === 'none';
     rawOutput.style.display = isHidden ? 'block' : 'none';
     toggleRawBtn.textContent = isHidden ? '▼ Ocultar texto bruto' : '▶ Ver texto bruto extraído';
+});
+
+addFileBtn.addEventListener('click', () => {
+    fileInput.click(); // Triggers the same file input, but logic in change event will handle it
 });
 
 exportCSVBtn.addEventListener('click', exportCSV);
@@ -103,8 +110,14 @@ async function processFiles(files) {
 
     loadingSection.style.display = 'block';
     
-    // Reset state for new batch
-    currentData = { equipe: [], setores: new Set(), datas: new Set(), totalPages: 0, rawTexts: [] };
+    // Check if we already have data (incremental mode)
+    const isIncremental = currentData.equipe.length > 0;
+    
+    // If not incremental, reset state. If incremental, we just keep adding.
+    if (!isIncremental) {
+        currentData = { equipe: [], setores: new Set(), datas: new Set(), totalPages: 0, rawTexts: [] };
+    }
+    
     let successCount = 0;
 
     for (let i = 0; i < files.length; i++) {
