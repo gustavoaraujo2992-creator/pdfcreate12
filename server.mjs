@@ -110,6 +110,10 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
         // 2. OCR Fallback
         if (!isNativeText) {
             try {
+                // Clear the potentially garbled text from native attempt
+                fullText = ''; 
+                pageNum = 0;
+                
                 logger.info('[Server] Iniciando OCR na Nuvem (OCR.Space)...');
                 const pages = await pdf(pdfBuffer, { scale: 1.1 });
 
