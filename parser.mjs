@@ -39,8 +39,9 @@ const NAME_STOP_WORDS = new Set([
 
 function formatCPF(d) {
     const l = d.replace(/\D/g, '');
-    if (l.length !== 11) return d;
-    return l.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (l.length < 9 || l.length > 11) return d;
+    const padded = l.padStart(11, '0');
+    return padded.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
 function extractDate(text) {
@@ -161,8 +162,8 @@ function parseAgendaSucinta(text) {
     const sector  = extractSector(text) || 'INSS';
     const dateRef = extractDate(text);
 
-    // Pattern: "NOME - Data de Nascimento: DD/MM/YYYY" on its own segment
-    const RE_ENTRY = /^(.+?)\s*-\s*Data\s+de\s+Nascimento:\s*\d{2}\/\d{2}\/\d{4}/gim;
+    // Pattern: "NOME - Data de Nascimento" on its own segment gracefully allowing missing birthdate bodies
+    const RE_ENTRY = /^(.+?)\s*[-–]?\s*Data\s+de\s+Nascimento/gim;
 
     let m;
     while ((m = RE_ENTRY.exec(text)) !== null) {
@@ -181,10 +182,10 @@ function parseAgendaSucinta(text) {
 
         const service = firstService(chunk);
 
-        // Bare 11-digit CPF after keyword "CPF"
+        // Bare 9 to 11-digit CPF after keyword "CPF"
         let cpf = 'NÃO INFORMADO';
-        const cpfRaw = chunk.match(/CPF\s+(\d{11})/i);
-        if (cpfRaw) cpf = formatCPF(cpfRaw[1]);
+        const cpfRaw = chunk.match(/CPF[\s:]+([\d\.\-\s]{9,15})/i);
+        if (cpfRaw) cpf = formatCPF(cpfRaw[1].replace(/\s/g, ''));
 
         equipe.push({ nome: name.toUpperCase(), cpf, horario: time, status: 'Agendado', setor: sector, servico: service, data: dateRef });
     }
