@@ -111,7 +111,7 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
         if (!isNativeText) {
             try {
                 logger.info('[Server] Iniciando OCR na Nuvem (OCR.Space)...');
-                const pages = await pdf(pdfBuffer, { scale: 1.5 });
+                const pages = await pdf(pdfBuffer, { scale: 1.1 });
 
                 for await (const pageImage of pages) {
                     pageNum++;
@@ -119,8 +119,8 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
                     const fd = new FormData();
                     fd.append('apikey', config.ocr.apiKey);
                     fd.append('language', config.ocr.language);
-                    fd.append('isTable', 'true'); // Enhanced multi-column parsing
-                    fd.append('scale', 'true'); // Internal OCR scaling for details
+                    fd.append('isTable', 'true');
+                    fd.append('scale', 'true');
                     fd.append('base64Image', `data:image/png;base64,${pageImage.toString('base64')}`);
 
                     const response = await fetch('https://api.ocr.space/parse/image', {
@@ -128,6 +128,12 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
                         body: fd
                     });
                     
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        logger.error(`[OCR.Space] Erro HTTP ${response.status} na pág ${pageNum}: ${errText.substring(0,200)}`);
+                        continue;
+                    }
+
                     const result = await response.json();
                     
                     if (result.IsErroredOnProcessing) {
