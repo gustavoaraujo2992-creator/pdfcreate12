@@ -1,6 +1,6 @@
 export default {
   server: {
-    port: process.env.PORT || 3001,
+    port: typeof process !== 'undefined' && process.env.PORT ? process.env.PORT : 3001,
   },
   cors: {
     whitelist: ['http://localhost:5173', 'http://localhost:3001', 'https://pdfcreate12.onrender.com'],
