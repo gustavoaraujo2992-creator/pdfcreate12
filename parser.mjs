@@ -92,21 +92,40 @@ function dedup(arr) {
 
 // ──────────────────────────────────────────────────────────────
 //  FORMAT 1 — INSS SIMPLES
+//  Handles both spaced and concatenated formats:
+//    Spaced:  27/03/2026 07:30 372.***.***-15 JOSE ALVES...
+//    Concat:  27/03/202607:30372.***.***-15JOSE ALVES...
 // ──────────────────────────────────────────────────────────────
+function normalizeINSSSimples(text) {
+    // Insert spaces between concatenated Date+Time+CPF+Name tokens
+    // Pattern: DD/MM/YYYYHH:MM... → DD/MM/YYYY HH:MM ...
+    let t = text;
+    // Separate date from time: 27/03/202607:30 → 27/03/2026 07:30
+    t = t.replace(/(\d{2}\/\d{2}\/\d{4})(\d{2}:\d{2})/g, '$1 $2');
+    // Separate time from masked CPF: 07:30372.***.***-15 → 07:30 372.***.***-15
+    t = t.replace(/(\d{2}:\d{2})(\d{3}\.\*{3}\.\*{3}-\d{2})/g, '$1 $2');
+    // Separate masked CPF from name: 372.***.***-15JOSE → 372.***.***-15 JOSE
+    t = t.replace(/(\d{3}\.\*{3}\.\*{3}-\d{2})([A-ZÀ-Ÿa-zà-ÿ])/g, '$1 $2');
+    return t;
+}
+
 function parseINSSSimples(text) {
     const equipe = [];
     let sector = extractSector(text);
     if (sector === 'DESCONHECIDO') sector = 'INSS';
     const dateRef = extractDate(text);
 
+    // Normalize concatenated tokens before tokenizing
+    const normalized = normalizeINSSSimples(text);
+
     const tokens = [];
     const tokRe = /\S+/g;
     let tm;
-    while ((tm = tokRe.exec(text)) !== null) tokens.push({ w: tm[0], pos: tm.index });
+    while ((tm = tokRe.exec(normalized)) !== null) tokens.push({ w: tm[0], pos: tm.index });
 
     const cpfRe = /(\d{3}\.\*{3}\.\*{3}-\d{2})/g;
     let cm;
-    while ((cm = cpfRe.exec(text)) !== null) {
+    while ((cm = cpfRe.exec(normalized)) !== null) {
         const cpfStr = cm[1];
         const cpfPos = cm.index;
         const cpfIdx = tokens.findIndex(t => t.pos === cpfPos);
@@ -137,8 +156,8 @@ function parseINSSSimples(text) {
         
         // Sometimes time is right after CPF if column ordering is weird
         if (time === '00:00') {
-            const forwardSlice = text.slice(cpfPos + cpfStr.length, cpfPos + cpfStr.length + 100);
-            const forwardM = forwardSlice.match(/(\d{2}:\d{2})(?::\d{2})?/);
+            const afterCPF = normalized.slice(cpfPos + cpfStr.length, cpfPos + cpfStr.length + 100);
+            const forwardM = afterCPF.match(/(\d{2}:\d{2})(?::\d{2})?/);
             if (forwardM) time = forwardM[1];
         }
 
@@ -194,40 +213,98 @@ function parseAgendaSucinta(text) {
 
 // ──────────────────────────────────────────────────────────────
 //  FORMAT 3 — SEAP VISITANTE
+//  Handles two layouts:
+//    A) Horizontal: VISITANTE NOME DATE HH:MM - HH:MM ...
+//    B) Vertical table (native PDF text extraction):
+//       NOME\n DATE\n VISITANTE\n HH:MM - HH:MM\n ...
 // ──────────────────────────────────────────────────────────────
 function parseSEAP(text) {
     const equipe  = [];
     const dateRef = extractDate(text);
     const sector  = 'SEAP';
-    const lines   = text.split('\n');
+    const lines   = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Join multi-line name continuations within the same row
-    const flat = [];
-    let cur = null;
-    for (const line of lines) {
-        const t = line.trim();
-        if (!t || t.length < 2) continue;
-        if (/^VISITAN?T[AE]/i.test(t)) { if (cur) flat.push(cur); cur = t; }
-        else if (cur && !RE_DATE_START.test(t) && !NOISE_WORDS.test(t)) { cur += ' ' + t; }
-        else if (cur) { flat.push(cur); cur = null; }
+    // Detect vertical table format: look for standalone "VISITANTE" lines
+    const visitanteLineIdxs = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (/^VISITAN?T[AE]$/i.test(lines[i])) {
+            visitanteLineIdxs.push(i);
+        }
     }
-    if (cur) flat.push(cur);
 
-    // Extract name and time from each row
-    const RE_ROW = /^VISITAN?T[AE]\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})/i;
-    for (const row of flat) {
-        const m = row.match(RE_ROW);
-        if (!m) continue;
-        
-        let name = m[1].trim().replace(/\s{2,}/g, ' ');
-        // Clean phone numbers: (61) 98888-8888 or 6199999999
-        name = name.replace(/(?:\(?0?\d{2}\)?\s*)?9?\d{4}-?\d{4}\b/g, '').trim();
-        // Clean remaining random digits
-        name = name.replace(/[\d\(\)\-\.]+$/g, '').trim();
+    if (visitanteLineIdxs.length > 2) {
+        // --- VERTICAL TABLE FORMAT ---
+        // Pattern: NOME / DATE / VISITANTE / TIME_RANGE / extra...
+        // The NOME appears before the DATE+VISITANTE pair
+        for (const vIdx of visitanteLineIdxs) {
+            // Look backwards for date (should be 1 line before VISITANTE)
+            let dateIdx = -1;
+            for (let j = vIdx - 1; j >= Math.max(0, vIdx - 3); j--) {
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(lines[j])) {
+                    dateIdx = j;
+                    break;
+                }
+            }
+            if (dateIdx < 0) continue;
 
-        const time = m[3];
-        equipe.push({ nome: name.toUpperCase(), cpf: 'NÃO INFORMADO', horario: time, status: 'Agendado', setor: sector, servico: 'VISITA', data: m[2] || dateRef });
+            // Name is the line(s) before the date line
+            // Collect name words going backwards from dateIdx, skipping noise
+            const nameLines = [];
+            for (let j = dateIdx - 1; j >= Math.max(0, dateIdx - 4); j--) {
+                const ln = lines[j];
+                // Stop at header keywords, page boundaries, or numeric IDs
+                if (/^(NOME|PREVIS[ÃA]O|TIPO|CONTATO|INTERNO|[Úú]lt|Pagina|SECRETARIA|GOVERNO|\d{5,})/i.test(ln)) break;
+                // Stop if it looks like a time range from previous entry
+                if (/^\d{2}:\d{2}\s*-\s*\d{2}:\d{2}$/.test(ln)) break;
+                // Stop at "Não Informado" (belongs to previous record)
+                if (/^N[ãa]o\s+Informado$/i.test(ln)) break;
+                nameLines.unshift(ln);
+            }
+
+            let name = nameLines.join(' ').replace(/\s{2,}/g, ' ').trim();
+            // Clean phone numbers
+            name = name.replace(/(?:\(?0?\d{2}\)?\s*)?9?\d{4}[-]?\d{4}\b/g, '').trim();
+            name = name.replace(/[\d\(\)\-\.]+$/g, '').trim();
+            if (name.length < 3) continue;
+
+            // Look forward for time range (HH:MM - HH:MM)
+            let time = '00:00';
+            let entryDate = lines[dateIdx];
+            for (let j = vIdx + 1; j <= Math.min(lines.length - 1, vIdx + 3); j++) {
+                const timeM = lines[j].match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+                if (timeM) {
+                    time = timeM[1];
+                    break;
+                }
+            }
+
+            equipe.push({ nome: name.toUpperCase(), cpf: 'NÃO INFORMADO', horario: time, status: 'Agendado', setor: sector, servico: 'VISITA', data: entryDate || dateRef });
+        }
     }
+
+    // --- HORIZONTAL ROW FORMAT (original logic, as fallback) ---
+    if (equipe.length === 0) {
+        const flat = [];
+        let cur = null;
+        for (const line of lines) {
+            if (/^VISITAN?T[AE]/i.test(line) && line.length > 12) { if (cur) flat.push(cur); cur = line; }
+            else if (cur && !RE_DATE_START.test(line) && !NOISE_WORDS.test(line)) { cur += ' ' + line; }
+            else if (cur) { flat.push(cur); cur = null; }
+        }
+        if (cur) flat.push(cur);
+
+        const RE_ROW = /^VISITAN?T[AE]\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})/i;
+        for (const row of flat) {
+            const m = row.match(RE_ROW);
+            if (!m) continue;
+            let name = m[1].trim().replace(/\s{2,}/g, ' ');
+            name = name.replace(/(?:\(?0?\d{2}\)?\s*)?9?\d{4}-?\d{4}\b/g, '').trim();
+            name = name.replace(/[\d\(\)\-\.]+$/g, '').trim();
+            const time = m[3];
+            equipe.push({ nome: name.toUpperCase(), cpf: 'NÃO INFORMADO', horario: time, status: 'Agendado', setor: sector, servico: 'VISITA', data: m[2] || dateRef });
+        }
+    }
+
     return { equipe, dateRef, sector };
 }
 
@@ -285,7 +362,23 @@ function parseDetran(text) {
 //  MASTER ENTRY POINT — Auto-detects format then dispatches
 // ══════════════════════════════════════════════════════════════
 export function parseINSSText(rawText) {
+    // Clean control chars but keep whitespace and newlines
     const text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\0/g, '');
+
+    // Detect garbled/binary text from PDFs with custom embedded fonts
+    // These PDFs produce text with high ratio of control characters and no readable content
+    const controlCharCount = (text.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g) || []).length;
+    const printableCount = (text.match(/[a-zA-ZÀ-ÿ0-9]/g) || []).length;
+    if (text.length > 500 && printableCount < text.length * 0.05) {
+        // Less than 5% printable characters → garbled PDF, needs OCR
+        return {
+            formato: 'Texto ilegível (necessita OCR)',
+            setor: 'DESCONHECIDO',
+            data_referencia: new Date().toLocaleDateString('pt-BR'),
+            equipe: [],
+            total: 0
+        };
+    }
 
     const maskedCt = (text.match(/\d{3}\.\*{3}\.\*{3}-\d{2}/g) || []).length;
     const fullCt   = (text.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/g) || []).length;
