@@ -36,5 +36,6 @@ async function extract(formData) {
 }
 
 export default {
+  login,
   extract,
 };
