@@ -7,6 +7,7 @@ export default {
   },
   ocr: {
     language: 'por',
+    apiKey: 'K89731482388957',
   },
   auth: {
     username: 'nhce',

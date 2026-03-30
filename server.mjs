@@ -1,7 +1,6 @@
 import express from 'express';
 import multer from 'multer';
 import { pdf } from 'pdf-to-img';
-import Tesseract from 'tesseract.js';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -111,19 +110,37 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
         // 2. OCR Fallback
         if (!isNativeText) {
             try {
-                logger.info('[Server] Iniciando OCR (pdf-to-img + Tesseract)...');
-                const pages = await pdf(pdfBuffer, { scale: 2.0 });
-                const worker = await Tesseract.createWorker(config.ocr.language);
+                logger.info('[Server] Iniciando OCR na Nuvem (OCR.Space)...');
+                const pages = await pdf(pdfBuffer, { scale: 1.5 });
 
                 for await (const pageImage of pages) {
                     pageNum++;
-                    const { data: { text } } = await worker.recognize(pageImage);
+                    
+                    const fd = new FormData();
+                    fd.append('apikey', config.ocr.apiKey);
+                    fd.append('language', config.ocr.language);
+                    fd.append('isTable', 'true'); // Enhanced multi-column parsing
+                    fd.append('scale', 'true'); // Internal OCR scaling for details
+                    fd.append('base64Image', `data:image/png;base64,${pageImage.toString('base64')}`);
+
+                    const response = await fetch('https://api.ocr.space/parse/image', {
+                        method: 'POST',
+                        body: fd
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.IsErroredOnProcessing) {
+                        logger.warn(`[OCR.Space] Erro na Pág ${pageNum}:`, result.ErrorMessage);
+                        continue;
+                    }
+
+                    const text = result.ParsedResults?.[0]?.ParsedText || '';
                     fullText += `--- PÁGINA ${pageNum} ---\n${text}\n\n`;
                 }
-                await worker.terminate();
             } catch (ocrError) {
-                logger.error('API /extract OCR Error:', ocrError);
-                return res.status(500).json({ error: 'Erro durante o processamento de OCR do PDF.' });
+                logger.error('API /extract OCR Error (OCREngine):', ocrError);
+                return res.status(500).json({ error: 'Erro durante o processamento via OCR.Space.' });
             }
         }
 
