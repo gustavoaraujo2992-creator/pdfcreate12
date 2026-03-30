@@ -23,8 +23,8 @@ export const addFileBtn = document.getElementById('addFileBtn');
 export const exportCSVBtn = document.getElementById('exportCSVBtn');
 export const newFileBtn = document.getElementById('newFileBtn');
 export const syncSheetsBtn = document.getElementById('syncSheetsBtn');
-export const loadSheetsBtn = document.createElement('button');
-export const addPersonBtn = document.createElement('button');
+export const loadSheetsBtn = document.getElementById('loadSheetsBtn') || document.createElement('button');
+export const addPersonBtn = document.getElementById('addPersonBtn');
 export const logoutBtn = document.getElementById('logoutBtn');
 
 // Metadata fields
