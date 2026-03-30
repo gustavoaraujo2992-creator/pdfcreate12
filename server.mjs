@@ -121,6 +121,7 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
                     fd.append('language', config.ocr.language);
                     fd.append('isTable', 'true');
                     fd.append('scale', 'true');
+                    fd.append('OCREngine', '2');
                     fd.append('base64Image', `data:image/png;base64,${pageImage.toString('base64')}`);
 
                     const response = await fetch('https://api.ocr.space/parse/image', {
