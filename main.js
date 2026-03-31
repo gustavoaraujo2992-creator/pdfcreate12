@@ -264,16 +264,31 @@ function updateStatsBar() {
   ui.statPages.textContent = currentData.totalPages;
 }
 
+// ─── Utility: Normalize Text (Remove Accents) ──────────────────
+function normalizeText(text) {
+  if (!text) return '';
+  return String(text)
+    .normalize('NFD') // Decompor caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Remover marcas de acentuação
+    .toLowerCase();
+}
+
 function renderTable() {
   const currentData = state.getState();
   if (!currentData || currentData.equipe.length === 0) return;
 
-  const query = ui.searchInput.value.trim().toLowerCase().replace(/[.\-]/g, '');
+  const rawQuery = ui.searchInput.value.trim();
+  const query = normalizeText(rawQuery).replace(/[.\-]/g, '');
   const selectedSector = ui.sectorFilter.value;
 
   const filtered = currentData.equipe.map((p, originalIdx) => ({ ...p, originalIdx })).filter(p => {
     let matchText = true;
-    if (query) matchText = p.nome.toLowerCase().includes(query) || p.cpf.replace(/[.\-]/g, '').includes(query);
+    if (query) {
+      const n = normalizeText(p.nome || '').replace(/[.\-]/g, '');
+      const c = String(p.cpf || '').replace(/[.\-]/g, '');
+      // Verificamos se a query (sem pontos/traços) está contida no nome ou CPF (ambos sem pontos/traços)
+      matchText = n.includes(query) || c.includes(query);
+    }
     let matchSector = true;
     if (selectedSector) matchSector = (p.setor === selectedSector);
     return matchText && matchSector;
@@ -391,13 +406,13 @@ async function loadFromSheets() {
         const [ts, sheet, reason, sector, date, nome, cpf, horario, servico, status] = row;
 
         newData.equipe.push({
-          nome: nome,
-          cpf: cpf,
-          setor: sector,
-          servico: servico,
+          nome: String(nome || '').trim(),
+          cpf: String(cpf || '').trim(),
+          setor: String(sector || 'GERAL'),
+          servico: String(servico || 'GERAL'),
           horario: formatTimeFromISO(horario),
-          status: status,
-          arquivo: sheet // Using sheet name as the source
+          status: String(status || 'Pendente'),
+          arquivo: String(sheet || 'Histórico')
         });
 
         newData.setores.add(sector);
@@ -414,34 +429,52 @@ async function loadFromSheets() {
 }
 
 // ─── Highlight Search Match ───────────────────────────────────
+// ─── Highlight Search Match ───────────────────────────────────
 function highlightMatch(text, query) {
-  if (!query || !text) return text;
-  const cleanQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const cleanText = text.replace(/[.\-]/g, '');
-  const idx = cleanText.toLowerCase().indexOf(cleanQuery);
-  if (idx === -1) return text;
-  let origStart = 0, cleanCount = 0;
-  for (let i = 0; i < text.length; i++) {
+  if (!query || !text) return text || '';
+  
+  const strText = String(text);
+  const normalizedText = normalizeText(strText).replace(/[.\-]/g, '');
+  const cleanQuery = query.replace(/[.\-]/g, '');
+  
+  const idx = normalizedText.indexOf(cleanQuery);
+  if (idx === -1) return strText;
+
+  // Mapeamento de índices do texto limpo de volta para o texto original
+  let origStart = -1, cleanCount = 0;
+  for (let i = 0; i < strText.length; i++) {
     if (cleanCount === idx) { origStart = i; break; }
-    if (!/[.\-]/.test(text[i])) cleanCount++;
+    // Apenas incrementamos se não for um caractere que removemos na limpeza
+    if (!/[.\-]/.test(strText[i])) cleanCount++;
   }
+  
+  if (origStart === -1) return strText;
+
   let origEnd = origStart, matchCleanCount = 0;
-  for (let i = origStart; i < text.length && matchCleanCount < cleanQuery.length; i++) {
+  for (let i = origStart; i < strText.length && matchCleanCount < cleanQuery.length; i++) {
     origEnd = i + 1;
-    if (!/[.\-]/.test(text[i])) matchCleanCount++;
+    if (!/[.\-]/.test(strText[i])) matchCleanCount++;
   }
-  return text.substring(0, origStart) + '<mark>' + text.substring(origStart, origEnd) + '</mark>' + text.substring(origEnd);
+
+  return strText.substring(0, origStart) + '<mark>' + strText.substring(origStart, origEnd) + '</mark>' + strText.substring(origEnd);
 }
 
 // ─── Export CSV ───────────────────────────────────────────────
 function exportCSV() {
-    const currentData = state.getState();
+  const currentData = state.getState();
   if (!currentData || currentData.equipe.length === 0) return;
-  const query = ui.searchInput.value.trim().toLowerCase().replace(/[.\-]/g, '');
+  
+  const rawQuery = ui.searchInput.value.trim();
+  const query = normalizeText(rawQuery).replace(/[.\-]/g, '');
   const selectedSector = ui.sectorFilter.value;
+
   const filtered = currentData.equipe.filter(p => {
     let matchText = true;
-    if (query) matchText = p.nome.toLowerCase().includes(query) || p.cpf.replace(/[.\-]/g, '').includes(query);
+    if (query) {
+      const n = normalizeText(p.nome || '').replace(/[.\-]/g, '');
+      const c = String(p.cpf || '').replace(/[.\-]/g, '');
+      matchText = n.includes(query) || c.includes(query);
+    }
     let matchSector = true;
     if (selectedSector) matchSector = (p.setor === selectedSector);
     return matchText && matchSector;
