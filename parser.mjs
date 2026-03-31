@@ -460,6 +460,63 @@ function parseDetranReport(text) {
     return { equipe, dateRef, sector };
 }
 
+
+// ──────────────────────────────────────────────────────────────
+//  FORMAT 6 — SEDES EXCEL (CSV)
+// ──────────────────────────────────────────────────────────────
+function parseSedesExcel(text) {
+    const equipe = [];
+    let dateRef = extractDate(text);
+    let sector = 'SEDES';
+    const lines = text.split('\n');
+
+    // Find the header line to map columns
+    let headers = [];
+    let dataStartLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].split(',');
+        if (line.some(h => h.toLowerCase().includes('servidor')) && 
+            line.some(h => h.toLowerCase().includes('usuario'))) {
+            headers = line.map(h => h.trim().toLowerCase());
+            dataStartLine = i + 1;
+            break;
+        }
+    }
+
+    if (dataStartLine === -1) return { equipe: [], dateRef, sector };
+
+    const idxNome = headers.findIndex(h => h === 'usuario');
+    const idxHora = headers.findIndex(h => h === 'hora');
+    const idxData = headers.findIndex(h => h === 'data');
+    const idxSrv  = headers.findIndex(h => h.includes('servidor'));
+
+    for (let i = dataStartLine; i < lines.length; i++) {
+        const row = lines[i].split(',');
+        if (row.length < headers.length || !row[idxNome]) continue;
+
+        const nome = row[idxNome].trim();
+        const hora = row[idxHora]?.trim();
+        const data = row[idxData]?.trim();
+        const srv  = row[idxSrv]?.trim();
+
+        if (nome.length < 3 || !hora) continue;
+        if (nome.toLowerCase().includes('usuario')) continue; // Header repeat
+
+        equipe.push({
+            nome: nome.toUpperCase(),
+            cpf: 'NÃO INFORMADO',
+            horario: hora,
+            status: 'Agendado',
+            setor: sector,
+            servico: srv ? srv.toUpperCase() : 'GERAL',
+            data: data || dateRef
+        });
+    }
+
+    return { equipe, dateRef, sector };
+}
+
 // ══════════════════════════════════════════════════════════════
 //  MASTER ENTRY POINT — Auto-detects format then dispatches
 // ══════════════════════════════════════════════════════════════
@@ -487,10 +544,14 @@ export function parseINSSText(rawText) {
     const hasNasc  = /Data\s+de\s+Nascimento/i.test(text);
     const hasSeap  = /VISITAN?T[AE]/i.test(text) && /PREVIS[AÃ]O\s+DE\s+ATENDIMENTO/i.test(text);
     const hasDetranReport = /Relat[óo]rio\s+de\s+Agendamento/i.test(text) && /Unidade\s+de\s+atendimento/i.test(text);
+    const hasSedesExcel = /Servidor\s+Nome/i.test(text) && /Usuario/i.test(text) && text.includes(',');
 
     let fmt, result;
 
-    if (hasDetranReport) {
+    if (hasSedesExcel) {
+        fmt    = 'SEDES Excel';
+        result = parseSedesExcel(text);
+    } else if (hasDetranReport) {
         fmt    = 'Detran Relatório de Agendamento';
         result = parseDetranReport(text);
     } else if (hasNasc) {

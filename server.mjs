@@ -98,8 +98,8 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
                 workbook.SheetNames.forEach(sheetName => {
                     const worksheet = workbook.Sheets[sheetName];
                     // Convert to CSV-like format with tabs for better parsing
-                    const text = XLSX.utils.sheet_to_txt(worksheet);
-                    excelContent += `--- PLANILHA: ${sheetName} ---\n${text}\n\n`;
+                    const csv = XLSX.utils.sheet_to_csv(worksheet);
+                    excelContent += `--- PLANILHA: ${sheetName} ---\n${csv}\n\n`;
                 });
                 
                 fullText = excelContent;
