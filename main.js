@@ -358,6 +358,21 @@ async function syncWithSheets() {
   }
 }
 
+/**
+ * Normaliza horários que o Google Sheets envia como data ISO de 1899
+ * devido ao fuso horário histórico (GMT-03:06:28).
+ */
+function formatTimeFromISO(val) {
+  if (typeof val !== 'string') return val;
+  if (val.startsWith('1899-12-30T')) {
+    const d = new Date(val);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return val;
+}
+
 async function loadFromSheets() {
   try {
     console.log('[Sheets] Buscando dados atualizados...');
@@ -380,7 +395,7 @@ async function loadFromSheets() {
           cpf: cpf,
           setor: sector,
           servico: servico,
-          horario: horario,
+          horario: formatTimeFromISO(horario),
           status: status,
           arquivo: sheet // Using sheet name as the source
         });

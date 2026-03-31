@@ -1,0 +1,4 @@
+﻿Original: 1899-12-30T10:36:28.000Z -> Normalized: 07:30
+Original: 1899-12-30T11:06:28.000Z -> Normalized: 08:00
+Original: 07:30 -> Normalized: 07:30
+Original: random text -> Normalized: random text
