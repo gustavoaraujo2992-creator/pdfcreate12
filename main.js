@@ -9,6 +9,8 @@ const sheets = new SheetsService();
 // ─── Auth Initialization ──────────────────────────────────────
 if (auth.isLoggedIn()) {
   ui.showUploadView();
+  // Auto-load data from sheets if already logged in
+  loadFromSheets();
 } else {
   ui.showLoginView();
 }
@@ -451,3 +453,9 @@ function getSectorFromFilename(name) {
   if (clean.includes('RODOVIARIA')) return 'NA HORA RODOVIÁRIA';
   return null;
 }
+// ─── Add skip to dashboard button event (if we had it in HTML)
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'viewDashboardBtn') {
+        showDashboard();
+    }
+});
