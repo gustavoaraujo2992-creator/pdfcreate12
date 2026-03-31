@@ -251,6 +251,15 @@ function showDashboard() {
   ui.rawOutput.querySelector('code').textContent = currentData.rawTexts.join('\n\n');
   ui.searchInput.value = '';
   ui.sectorFilter.value = '';
+
+  // Smart Pre-fill for Sync Metadata
+  const allFiles = Array.from(new Set(currentData.equipe.map(p => p.arquivo))).filter(Boolean);
+  if (allFiles.length === 1) {
+    ui.sheetNameInput.value = allFiles[0].replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '');
+  } else if (allFiles.length > 1) {
+    ui.sheetNameInput.value = 'Múltiplos Arquivos';
+  }
+
   renderTable();
 }
 
@@ -390,7 +399,7 @@ async function syncWithSheets() {
     // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
     const recordsToSync = currentData.equipe.map(p => ({
       ...p,
-      // Se não houver motivo específico no registro, usamos o do formulário
+      planilha: p.arquivo || metadata.name, // Explicitly provide "Planilha"
       motivo: metadata.reason 
     }));
 
