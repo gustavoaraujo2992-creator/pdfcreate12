@@ -308,7 +308,13 @@ function renderTable() {
   ui.tableBody.innerHTML = filtered.map((person, idx) => {
     const nome = highlightMatch(person.nome, query);
     const cpf = highlightMatch(person.cpf, query);
-    const statusClass = person.status.includes('OCR') ? 'badge-warning' : 'badge-success';
+    let statusClass = 'badge-success';
+    if (person.status.includes('OCR')) statusClass = 'badge-warning';
+    if (person.status === 'ATENDIDO') statusClass = 'badge-danger';
+
+    const confirmBtn = person.status !== 'ATENDIDO' 
+      ? `<button class="btn-confirm-row" data-idx="${person.originalIdx}">Confirmar</button>` 
+      : '';
 
     return `<tr>
         <td>${idx + 1}</td>
@@ -318,7 +324,10 @@ function renderTable() {
         <td style="font-size: 0.8rem; color: #94a3b8;">${person.servico || 'GERAL'}</td>
         <td>${person.horario || '<span style="color:#64748b;">--:--</span>'}</td>
         <td><span class="badge ${statusClass}">${person.status}</span></td>
-        <td><button class="btn-edit-row" data-idx="${person.originalIdx}">Editar</button></td>
+        <td>
+            ${confirmBtn}
+            <button class="btn-edit-row" data-idx="${person.originalIdx}">Editar</button>
+        </td>
     </tr>`;
   }).join('');
 
@@ -328,6 +337,21 @@ function renderTable() {
       openEditModal(parseInt(e.target.dataset.idx));
     });
   });
+
+  // Attach confirm events
+  document.querySelectorAll('.btn-confirm-row').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(e.target.dataset.idx);
+      confirmAttendance(idx);
+    });
+  });
+}
+
+function confirmAttendance(index) {
+  const currentData = state.getState();
+  currentData.equipe[index].status = 'ATENDIDO';
+  state.setState(currentData);
+  renderTable();
 }
 
 function openEditModal(index) {
@@ -363,7 +387,14 @@ async function syncWithSheets() {
   ui.syncSheetsBtn.textContent = '🔄 Sincronizando...';
 
   try {
-    await sheets.saveExtraction(metadata, currentData.equipe);
+    // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
+    const recordsToSync = currentData.equipe.map(p => ({
+      ...p,
+      // Se não houver motivo específico no registro, usamos o do formulário
+      motivo: metadata.reason 
+    }));
+
+    await sheets.saveExtraction(metadata, recordsToSync);
     alert('Sincronização concluída com sucesso no Google Sheets!');
   } catch (error) {
     alert('Erro ao sincronizar: ' + error.message);

@@ -25,11 +25,16 @@ function doPost(e) {
   
   if (payload.action === 'save') {
     records.forEach(r => {
+      // Prioritize data from the record itself to avoid losing "Origem"
+      const planilhaOrigem = r.arquivo || r.planilha || metadata.name || "N/A";
+      const motivoOrigem = r.motivo || metadata.reason || "N/A";
+      const setorOrigem = r.setor || metadata.sector || "N/A";
+
       sheet.appendRow([
         metadata.timestamp,
-        metadata.name,
-        metadata.reason,
-        metadata.sector,
+        planilhaOrigem,
+        motivoOrigem,
+        setorOrigem,
         metadata.date,
         r.nome,
         r.cpf,

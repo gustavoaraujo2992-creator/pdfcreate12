@@ -392,6 +392,12 @@ footer {
     color: var(--warning);
 }
 
+.badge-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+    font-weight: 700;
+}
+
 /* Highlight matched text */
 mark {
     background: rgba(99, 102, 241, 0.3);
@@ -622,3 +628,22 @@ mark {
 }
 
 .btn-edit-row:hover { background: var(--accent); }
+
+.btn-confirm-row {
+    padding: 6px 12px;
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 4px;
+}
+
+.btn-confirm-row:hover {
+    background: #22c55e;
+    color: #0a0e1a;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
