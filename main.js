@@ -257,7 +257,9 @@ function showDashboard() {
   if (allFiles.length === 1) {
     ui.sheetNameInput.value = allFiles[0].replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '');
   } else if (allFiles.length > 1) {
-    ui.sheetNameInput.value = 'Múltiplos Arquivos';
+    // Para múltiplos arquivos, deixamos em branco ou com um nome de lote, 
+    // mas garantimos que o Dashboard NÃO mostre "Múltiplos Arquivos" nas linhas.
+    ui.sheetNameInput.value = 'Extração Combinada';
   }
 
   renderTable();
@@ -399,7 +401,10 @@ async function syncWithSheets() {
     // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
     const recordsToSync = currentData.equipe.map(p => ({
       ...p,
-      planilha: p.arquivo || metadata.name, // Explicitly provide "Planilha"
+      // Priorizamos o NOME DO ARQUIVO original de cada linha
+      planilha: (p.arquivo && p.arquivo !== 'Histórico' && p.arquivo !== 'Múltiplos Arquivos' && p.arquivo !== 'Extração Combinada') 
+                ? p.arquivo 
+                : (metadata.name || 'Extração PDFNice'),
       motivo: metadata.reason 
     }));
 
