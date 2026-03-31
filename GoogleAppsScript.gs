@@ -25,7 +25,7 @@ function doPost(e) {
   
   if (payload.action === 'save') {
     records.forEach(r => {
-      // Prioritize data from the record itself to avoid losing original name/sector
+      // Prioritize data from the record itself to avoid losing original source filename/sector
       // Column order in sheet: [Timestamp, Planilha, Motivo, Setor, Data Ref, Nome, CPF, Horário, Serviço, Status]
       const planillaOrigem = r.planilha || r.arquivo || metadata.name || "N/A";
       const motivoOrigem = r.motivo || metadata.reason || "N/A";
