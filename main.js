@@ -156,7 +156,7 @@ ui.editForm.addEventListener('submit', (e) => {
 // ─── Process Files (Batch) ────────────────────────────────────
 async function processFiles(files) {
   if (files.length === 0) {
-    alert('Nenhum arquivo PDF válido selecionado.');
+    alert('Nenhum arquivo (PDF ou Excel) selecionado.');
     return;
   }
 
@@ -443,12 +443,11 @@ function exportCSV() {
 }
 
 // ─── Utility: Extract Sector from Filename ────────────────────
-function getSectorFromFilename(filename) {
-  const match = filename.match(/Agenda\s+([A-Za-zÀ-ü]+)/i);
-  if (match) {
-    let name = match[1].toUpperCase();
-    if (name.length > 2) return name;
-  }
-  const clean = filename.replace(/\.pdf$/i, '').replace(/Agenda/i, '').replace(/[\d\-\_\/\.]/g, '').trim().toUpperCase();
-  return clean.length >= 2 ? clean : null;
+function getSectorFromFilename(name) {
+  const clean = name.replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '').replace(/[-_]/g, ' ').toUpperCase();
+  if (clean.includes('CEILANDIA')) return 'NA HORA CEILÂNDIA';
+  if (clean.includes('GAMA')) return 'NA HORA GAMA';
+  if (clean.includes('TAGUATINGA')) return 'NA HORA TAGUA';
+  if (clean.includes('RODOVIARIA')) return 'NA HORA RODOVIÁRIA';
+  return null;
 }

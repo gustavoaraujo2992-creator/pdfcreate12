@@ -15,7 +15,10 @@
 //
 //  FORMAT 4 — DETRAN / TABELA CPF COMPLETO
 //    Rows:  UNIDADE  SERVICO  NOME  123.456.789-10  DATE  HH:MM ...
-//    Name is BEFORE the full CPF → reverse token scan
+//
+//  FORMAT 5 — DETRAN RELATÓRIO DE AGENDAMENTO
+//    Header: Relatório de Agendamento / Unidade de atendimento
+//    Rows are columnar but often split across lines in text extraction.
 // ══════════════════════════════════════════════════════════════
 
 // ─── Shared Utilities ────────────────────────────────────────
@@ -308,9 +311,6 @@ function parseSEAP(text) {
     return { equipe, dateRef, sector };
 }
 
-// ──────────────────────────────────────────────────────────────
-//  FORMAT 4 — DETRAN / TABELA CPF COMPLETO
-// ──────────────────────────────────────────────────────────────
 function parseDetran(text) {
     const equipe  = [];
     const dateRef = extractDate(text);
@@ -358,6 +358,108 @@ function parseDetran(text) {
     return { equipe, dateRef, sector };
 }
 
+// ──────────────────────────────────────────────────────────────
+//  FORMAT 5 — DETRAN RELATÓRIO DE AGENDAMENTO
+// ──────────────────────────────────────────────────────────────
+function parseDetranReport(text) {
+    const equipe  = [];
+    const dateRef = extractDate(text);
+    const sector  = extractSector(text) || 'DETRAN';
+
+    // In Detran Reports, data is often spread across multiple lines.
+    // We look for CPF patterns (with or without masks) and then scan nearby.
+    const tokens = [];
+    const tokRe  = /\S+/g;
+    let tm;
+    while ((tm = tokRe.exec(text)) !== null) tokens.push({ w: tm[0], pos: tm.index });
+
+    // Look for CPF patterns: 000.000.000-00 or 000.000.000- (split) or 00000000000
+    const cpfPatterns = [
+        /(\d{3}\.\d{3}\.\d{3}-\d{2})/,
+        /(\d{3}\.\d{3}\.\d{3}-)/,
+        /(\d{11})/
+    ];
+
+    for (let i = 0; i < tokens.length; i++) {
+        let cpf = '';
+        let foundPattern = -1;
+        
+        for (let pIdx = 0; pIdx < cpfPatterns.length; pIdx++) {
+            if (cpfPatterns[pIdx].test(tokens[i].w)) {
+                cpf = tokens[i].w.match(cpfPatterns[pIdx])[1];
+                foundPattern = pIdx;
+                break;
+            }
+        }
+
+        if (foundPattern === -1) continue;
+
+        // If it's a split CPF (ending in dash), try to find the suffix nearby
+        if (foundPattern === 1 && i + 1 < tokens.length && /^\d{2}$/.test(tokens[i+1].w)) {
+            cpf += tokens[i+1].w;
+        }
+
+        const formattedCpf = formatCPF(cpf);
+        if (formattedCpf.includes('*') || formattedCpf === 'NÃO INFORMADO') continue;
+
+        // Found a CPF. Now find Name (usually before or in same line) and Time (usually after)
+        // Scan backwards for Name
+        const nameWords = [];
+        for (let j = i - 1; j >= Math.max(0, i - 10); j--) {
+            const word = tokens[j].w.toUpperCase();
+            if (NAME_STOP_WORDS.has(word) || RE_DATE_START.test(word) || /^\d{2}:\d{2}/.test(word)) break;
+            if (/^\d{3,}/.test(word) && !word.includes('.')) break; // Likely a protocol or ID
+            nameWords.unshift(tokens[j].w);
+        }
+
+        // Scan forwards for more name words (sometimes name follows CPF or is on next line)
+        for (let j = i + 1; j < Math.min(tokens.length, i + 10); j++) {
+            const word = tokens[j].w.toUpperCase();
+            if (NAME_STOP_WORDS.has(word) || RE_DATE_START.test(word) || /^\d{2}:\d{2}/.test(word)) break;
+            if (/^[0-9.-]{5,}$/.test(word)) break;
+            nameWords.push(tokens[j].w);
+        }
+
+        let name = nameWords.join(' ').trim();
+        // Clean name from common prefixes like "Habitação", "Veículo", etc if they got caught
+        name = name.replace(/^(Ve[íi]culo|Habitac|Habilita[çc][ãa]o|e\/ou|\(NA\s+HORA\)|atendiment[eo]|Unidade|idad[ãa]‹?|A[çc][õo]es|\s+)+/gi, '').trim();
+        
+        // If name is purely numeric, it's likely the CPF duplicated in the name column
+        if (/^\d[\d.-]*$/.test(name)) name = 'NÃO INFORMADO';
+        
+        if (name.length < 3 || name.split(' ').length < 1) continue;
+
+        // Final polishing: remove any trailing suffix that matches the CPF suffix
+        const suffix = formattedCpf.slice(-2);
+        if (name.endsWith(' ' + suffix)) name = name.slice(0, -3).trim();
+
+        // Time search forwards
+        let time = '00:00';
+        for (let j = i + 1; j < Math.min(tokens.length, i + 20); j++) {
+            const tM = tokens[j].w.match(RE_TIME_SIMPLE);
+            if (tM) {
+                time = tM[1];
+                break;
+            }
+        }
+
+        // Service search backwards
+        const service = firstService(text.slice(Math.max(0, tokens[i].pos - 500), tokens[i].pos));
+
+        equipe.push({ 
+            nome: name.toUpperCase(), 
+            cpf: formattedCpf, 
+            horario: time, 
+            status: 'Pendente', 
+            setor: sector, 
+            servico: service, 
+            data: dateRef 
+        });
+    }
+
+    return { equipe, dateRef, sector };
+}
+
 // ══════════════════════════════════════════════════════════════
 //  MASTER ENTRY POINT — Auto-detects format then dispatches
 // ══════════════════════════════════════════════════════════════
@@ -384,10 +486,14 @@ export function parseINSSText(rawText) {
     const fullCt   = (text.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/g) || []).length;
     const hasNasc  = /Data\s+de\s+Nascimento/i.test(text);
     const hasSeap  = /VISITAN?T[AE]/i.test(text) && /PREVIS[AÃ]O\s+DE\s+ATENDIMENTO/i.test(text);
+    const hasDetranReport = /Relat[óo]rio\s+de\s+Agendamento/i.test(text) && /Unidade\s+de\s+atendimento/i.test(text);
 
     let fmt, result;
 
-    if (hasNasc) {
+    if (hasDetranReport) {
+        fmt    = 'Detran Relatório de Agendamento';
+        result = parseDetranReport(text);
+    } else if (hasNasc) {
         fmt    = 'INSS Agenda Sucinta';
         result = parseAgendaSucinta(text);
     } else if (hasSeap) {

@@ -14,6 +14,7 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
+const XLSX = require('xlsx');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -81,15 +82,40 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
     }
 
     try {
-        const pdfBuffer = req.file.buffer;
+        const fileBuffer = req.file.buffer;
+        const fileName = req.file.originalname.toLowerCase();
         let fullText = '';
         let pageNum = 0;
         let isNativeText = false;
 
-        // 1. Try Native PDF Text Extraction
-        try {
-            logger.info('[Server] Tentando extração nativa...');
-            const data = await pdfParse(pdfBuffer);
+        // 0. Handle Excel Files
+        if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+            logger.info(`[Server] Processando Excel: ${fileName}`);
+            try {
+                const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+                let excelContent = '';
+                
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    // Convert to CSV-like format with tabs for better parsing
+                    const text = XLSX.utils.sheet_to_txt(worksheet);
+                    excelContent += `--- PLANILHA: ${sheetName} ---\n${text}\n\n`;
+                });
+                
+                fullText = excelContent;
+                isNativeText = true; // Excel is already "native" text
+                pageNum = workbook.SheetNames.length;
+            } catch (excelErr) {
+                logger.error('[Server] Erro ao ler Excel:', excelErr);
+                return res.status(400).json({ error: 'Erro ao processar arquivo Excel.' });
+            }
+        }
+
+        // 1. Try Native PDF Text Extraction (skipped if Excel)
+        if (!isNativeText) {
+            try {
+                logger.info('[Server] Tentando extração nativa...');
+                const data = await pdfParse(fileBuffer);
             if (data && data.text && data.text.trim().length > 100) {
                fullText = data.text;
                pageNum = data.numpages || 1;
@@ -106,6 +132,7 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
             logger.warn('[Server] Falha na extração nativa:', e.message);
             // Don't return, proceed to OCR fallback
         }
+    }
 
         // 2. OCR Fallback
         if (!isNativeText) {
@@ -115,7 +142,7 @@ app.post('/api/extract', upload.single('pdf'), async (req, res) => {
                 pageNum = 0;
                 
                 logger.info('[Server] Iniciando OCR na Nuvem (OCR.Space)...');
-                const pages = await pdf(pdfBuffer, { scale: 1.1 });
+                const pages = await pdf(fileBuffer, { scale: 1.1 });
 
                 for await (const pageImage of pages) {
                     pageNum++;
