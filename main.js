@@ -47,14 +47,20 @@ ui.dropzone.addEventListener('drop', (e) => {
   e.preventDefault();
   ui.dropzone.classList.remove('dragover');
   if (e.dataTransfer.files.length > 0) {
-    const validFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+    const validFiles = Array.from(e.dataTransfer.files).filter(f => {
+      const name = f.name.toLowerCase();
+      return f.type === 'application/pdf' || name.endsWith('.pdf') || name.endsWith('.xls') || name.endsWith('.xlsx');
+    });
     processFiles(validFiles);
   }
 });
 
 ui.fileInput.addEventListener('change', (e) => {
   if (e.target.files.length > 0) {
-    const validFiles = Array.from(e.target.files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+    const validFiles = Array.from(e.target.files).filter(f => {
+      const name = f.name.toLowerCase();
+      return f.type === 'application/pdf' || name.endsWith('.pdf') || name.endsWith('.xls') || name.endsWith('.xlsx');
+    });
     processFiles(validFiles);
   }
 });
@@ -200,8 +206,7 @@ async function processFiles(files) {
           newData.equipe.push({
             ...p,
             setor: finalSector,
-            arquivo: file.name,
-            source_filename: file.name // Explicit assignment for data pipeline decoupling
+            arquivo: file.name
           });
         }
         state.setState(newData);
@@ -391,7 +396,7 @@ async function syncWithSheets() {
   const metadata = {
     name: ui.sheetNameInput.value || 'Extração PDFNice',
     reason: ui.sheetReasonInput.value || 'Backup Automático',
-    sector: ui.sheetSectorInput.value || 'Geral', // Removed batch name fallback to avoid pollution
+    sector: ui.sheetSectorInput.value || 'Geral', 
     date: Array.from(currentData.datas)[0] || 'N/A'
   };
 
@@ -399,13 +404,10 @@ async function syncWithSheets() {
   ui.syncSheetsBtn.textContent = '🔄 Sincronizando...';
 
   try {
-    // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
     const recordsToSync = currentData.equipe.map(p => ({
       ...p,
-      // O nome do arquivo original (arquivo/source_filename) é sagrado
-      planilha: p.arquivo || p.source_filename || metadata.name || 'Extração PDFNice',
-      setor: p.setor, // Existing extracted sector
-      source_filename: p.source_filename || p.arquivo, // Explicit source filename for mapping
+      planilha: p.arquivo || metadata.name || 'Extração PDFNice',
+      setor: p.setor || metadata.sector || 'Geral',
       motivo: metadata.reason 
     }));
 

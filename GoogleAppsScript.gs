@@ -29,7 +29,7 @@ function doPost(e) {
       // Ordem das colunas: [Timestamp, Planilha, Motivo, Setor, Data Ref, Nome, CPF, Horário, Serviço, Status]
       const planillaFinal = r.planilha || r.arquivo || metadata.name || "N/A";
       const motivoFinal = r.motivo || metadata.reason || "N/A";
-      const setorFinal = r.source_filename || r.planilha || r.arquivo || metadata.sector || "Geral";
+      const setorFinal = r.setor || metadata.sector || "Geral";
 
       sheet.appendRow([
         metadata.timestamp,
