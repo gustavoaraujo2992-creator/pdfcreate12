@@ -403,8 +403,8 @@ async function syncWithSheets() {
       ...p,
       // O nome do arquivo original (arquivo) é sagrado e será enviado como a 'planilha' de origem
       planilha: p.arquivo || metadata.name || 'Extração PDFNice',
-      // Mantemos o setor individual se ele existir
-      setor: p.setor || metadata.sector,
+      // Mantemos o setor individual se ele existir (extraído do nome do arquivo como SEDES, SEAPE, etc.)
+      setor: (p.setor && p.setor !== 'GERAL' && p.setor !== 'Geral') ? p.setor : (metadata.sector || 'GERAL'),
       motivo: metadata.reason 
     }));
 
@@ -539,12 +539,13 @@ function exportCSV() {
 
 // ─── Utility: Extract Sector from Filename ────────────────────
 function getSectorFromFilename(name) {
-  const clean = name.replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '').replace(/[-_]/g, ' ').toUpperCase();
-  if (clean.includes('CEILANDIA')) return 'NA HORA CEILÂNDIA';
-  if (clean.includes('GAMA')) return 'NA HORA GAMA';
-  if (clean.includes('TAGUATINGA')) return 'NA HORA TAGUA';
-  if (clean.includes('RODOVIARIA')) return 'NA HORA RODOVIÁRIA';
-  return null;
+  const clean = name.toUpperCase();
+  if (clean.includes('SEDES')) return 'SEDES';
+  if (clean.includes('SEAPE')) return 'SEAPE';
+  if (clean.includes('PCDF')) return 'PCDF';
+  if (clean.includes('DETRAN')) return 'DETRAN';
+  if (clean.includes('INSS')) return 'INSS';
+  return 'GERAL';
 }
 // ─── Add skip to dashboard button event (if we had it in HTML)
 document.addEventListener('click', (e) => {
