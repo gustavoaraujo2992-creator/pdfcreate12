@@ -67,7 +67,7 @@ function extractSector(text) {
 
 function firstService(chunk) {
     const m = chunk.match(SERVICE_KW);
-    return m ? m[0].trim().toUpperCase() : 'GERAL';
+    return m ? m[0].trim().toUpperCase() : null;
 }
 
 function isNameWord(w) {

@@ -403,8 +403,9 @@ async function syncWithSheets() {
       ...p,
       // O nome do arquivo original (arquivo) é sagrado e será enviado como a 'planilha' de origem
       planilha: p.arquivo || metadata.name || 'Extração PDFNice',
-      // Mantemos o setor individual se ele existir (extraído do nome do arquivo como SEDES, SEAPE, etc.)
-      setor: (p.setor && p.setor !== 'GERAL' && p.setor !== 'Geral') ? p.setor : (metadata.sector || 'GERAL'),
+      // O setor de cada registro (p.setor) já foi definido corretamente durante o processamento do arquivo.
+      // Apenas o enviamos diretamente.
+      setor: p.setor,
       motivo: metadata.reason 
     }));
 
