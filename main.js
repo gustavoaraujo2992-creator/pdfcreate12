@@ -200,7 +200,8 @@ async function processFiles(files) {
           newData.equipe.push({
             ...p,
             setor: finalSector,
-            arquivo: file.name
+            arquivo: file.name,
+            source_filename: file.name // Explicit assignment for data pipeline decoupling
           });
         }
         state.setState(newData);
@@ -390,7 +391,7 @@ async function syncWithSheets() {
   const metadata = {
     name: ui.sheetNameInput.value || 'Extração PDFNice',
     reason: ui.sheetReasonInput.value || 'Backup Automático',
-    sector: ui.sheetSectorInput.value || ui.sheetNameInput.value || 'Geral',
+    sector: ui.sheetSectorInput.value || 'Geral', // Removed batch name fallback to avoid pollution
     date: Array.from(currentData.datas)[0] || 'N/A'
   };
 
@@ -401,11 +402,10 @@ async function syncWithSheets() {
     // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
     const recordsToSync = currentData.equipe.map(p => ({
       ...p,
-      // O nome do arquivo original (arquivo) é sagrado e será enviado como a 'planilha' de origem
-      planilha: p.arquivo || metadata.name || 'Extração PDFNice',
-      // O setor de cada registro (p.setor) já foi definido corretamente durante o processamento do arquivo.
-      // Apenas o enviamos diretamente.
-      setor: p.setor,
+      // O nome do arquivo original (arquivo/source_filename) é sagrado
+      planilha: p.arquivo || p.source_filename || metadata.name || 'Extração PDFNice',
+      setor: p.setor, // Existing extracted sector
+      source_filename: p.source_filename || p.arquivo, // Explicit source filename for mapping
       motivo: metadata.reason 
     }));
 
