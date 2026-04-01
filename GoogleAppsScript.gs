@@ -25,17 +25,17 @@ function doPost(e) {
   
   if (payload.action === 'save') {
     records.forEach(r => {
-      // Prioritize data from the record itself to avoid losing original source filename/sector
-      // Column order in sheet: [Timestamp, Planilha, Motivo, Setor, Data Ref, Nome, CPF, Horário, Serviço, Status]
-      const planillaOrigem = r.planilha || r.arquivo || metadata.name || "N/A";
-      const motivoOrigem = r.motivo || metadata.reason || "N/A";
-      const setorOrigem = r.setor || metadata.sector || "N/A";
+      // Prioridade TOTAL para o dado original de cada registro (linha)
+      // Ordem das colunas: [Timestamp, Planilha, Motivo, Setor, Data Ref, Nome, CPF, Horário, Serviço, Status]
+      const planillaFinal = r.planilha || r.arquivo || metadata.name || "N/A";
+      const motivoFinal = r.motivo || metadata.reason || "N/A";
+      const setorFinal = r.setor || metadata.sector || "N/A";
 
       sheet.appendRow([
         metadata.timestamp,
-        planillaOrigem,
-        motivoOrigem,
-        setorOrigem,
+        planillaFinal,
+        motivoFinal,
+        setorFinal,
         metadata.date,
         r.nome,
         r.cpf,

@@ -401,11 +401,9 @@ async function syncWithSheets() {
     // Adicionamos setor e planilha de origem em cada registro para o Sheets não perder a informação
     const recordsToSync = currentData.equipe.map(p => ({
       ...p,
-      // Priorizamos o NOME DO ARQUIVO original de upload a todo custo
-      planilha: (p.arquivo && p.arquivo !== 'Histórico' && p.arquivo !== 'Múltiplos Arquivos' && p.arquivo !== 'Extração Combinada') 
-                ? p.arquivo 
-                : (metadata.name || 'Extração PDFNice'),
-      // Se já temos o setor individual (vindo do PDF), mantemos ele
+      // O nome do arquivo original (arquivo) é sagrado e será enviado como a 'planilha' de origem
+      planilha: p.arquivo || metadata.name || 'Extração PDFNice',
+      // Mantemos o setor individual se ele existir
       setor: p.setor || metadata.sector,
       motivo: metadata.reason 
     }));
