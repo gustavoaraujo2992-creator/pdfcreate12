@@ -390,7 +390,7 @@ async function syncWithSheets() {
   const metadata = {
     name: ui.sheetNameInput.value || 'Extração PDFNice',
     reason: ui.sheetReasonInput.value || 'Backup Automático',
-    sector: ui.sheetSectorInput.value || 'Geral',
+    sector: ui.sheetSectorInput.value || ui.sheetNameInput.value || 'Geral',
     date: Array.from(currentData.datas)[0] || 'N/A'
   };
 
