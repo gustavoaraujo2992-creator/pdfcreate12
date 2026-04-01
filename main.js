@@ -199,13 +199,11 @@ async function processFiles(files) {
         const sectorFromName = getSectorFromFilename(file.name);
 
         for (const p of data.parsed.equipe) {
-          // Precedence: 1. Manual User Input (highest), 2. Filename Extraction, 3. PDF Content data, 4. Default
-          const finalSector = manualSector || sectorFromName || p.setor || data.parsed.setor || 'NA HORA CEILÂNDIA';
-
-          newData.setores.add(finalSector);
+          const fileUpper = file.name.toUpperCase();
+          newData.setores.add(fileUpper);
           newData.equipe.push({
             ...p,
-            setor: file.name, // Força o nome do arquivo no campo Setor
+            setor: fileUpper, 
             arquivo: file.name
           });
         }
@@ -406,10 +404,17 @@ async function syncWithSheets() {
     return;
   }
 
+  // Prompt opcional para nome de setor único em "Gravar Tudo"
+  let batchSectorOverride = null;
+  if (filteredRecords.length === currentData.equipe.length) {
+    batchSectorOverride = prompt("Deseja definir um nome de Setor/Unidade único para todos os registros? (Deixe em BRANCO para usar os nomes dos arquivos originais)");
+    if (batchSectorOverride) batchSectorOverride = batchSectorOverride.trim().toUpperCase();
+  }
+
   const metadata = {
     name: 'Extração PDFNice',
     reason: 'Sincronização Dashboard',
-    sector: selectedSector || 'Geral', 
+    sector: batchSectorOverride || selectedSector || 'Geral', 
     date: Array.from(currentData.datas)[0] || new Date().toLocaleDateString('pt-BR')
   };
 
@@ -421,7 +426,7 @@ async function syncWithSheets() {
     const recordsToSync = filteredRecords.map(p => ({
       ...p,
       planilha: p.arquivo || 'N/A',
-      setor: p.setor || 'Geral',
+      setor: batchSectorOverride || p.setor || 'Geral',
       motivo: metadata.reason 
     }));
 
