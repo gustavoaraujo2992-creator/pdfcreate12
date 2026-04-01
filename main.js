@@ -205,7 +205,7 @@ async function processFiles(files) {
           newData.setores.add(finalSector);
           newData.equipe.push({
             ...p,
-            setor: finalSector,
+            setor: file.name, // Força o nome do arquivo no campo Setor
             arquivo: file.name
           });
         }
@@ -235,12 +235,6 @@ async function processFiles(files) {
 // ─── Dashboard Logic ──────────────────────────────────────────
 function showDashboard() {
   ui.showDashboardView();
-
-  // Pre-fill metadata sector if manual sector was used
-  if (ui.defaultSectorInput.value.trim()) {
-    ui.sheetSectorInput.value = ui.defaultSectorInput.value.trim().toUpperCase();
-  }
-
   updateStatsBar();
   const currentData = state.getState();
 
@@ -257,17 +251,7 @@ function showDashboard() {
   ui.rawOutput.querySelector('code').textContent = currentData.rawTexts.join('\n\n');
   ui.searchInput.value = '';
   ui.sectorFilter.value = '';
-
-  // Smart Pre-fill for Sync Metadata
-  const allFiles = Array.from(new Set(currentData.equipe.map(p => p.arquivo))).filter(Boolean);
-  if (allFiles.length === 1) {
-    ui.sheetNameInput.value = allFiles[0].replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '');
-  } else {
-    // Para múltiplos nomes, usamos um padrão de lote, mas não o aplicamos às linhas individuais
-    const now = new Date();
-    ui.sheetNameInput.value = `Lote Extração - ${now.toLocaleDateString('pt-BR')}`;
-  }
-
+  
   renderTable();
 }
 
@@ -312,6 +296,13 @@ function renderTable() {
   });
 
   ui.searchCount.textContent = `${filtered.length} de ${currentData.equipe.length} registros`;
+  
+  // Atualiza o texto do botão de gravação para mostrar o que será enviado
+  if (filtered.length === currentData.equipe.length) {
+    ui.syncSheetsBtn.textContent = `☁️ Gravar Tudo (${filtered.length} registros)`;
+  } else {
+    ui.syncSheetsBtn.textContent = `🔍 Gravar Selecionados (${filtered.length})`;
+  }
 
   if (filtered.length === 0) {
     ui.noResults.style.display = 'block';
@@ -385,7 +376,7 @@ function openEditModal(index) {
 
 async function syncWithSheets() {
   const currentData = state.getState();
-  if (currentData.equipe.length === 0) return;
+  if (!currentData || currentData.equipe.length === 0) return;
 
   if (!sheets.scriptUrl) {
     const url = prompt('Cole aqui a URL do seu Web App do Google Apps Script:');
@@ -393,31 +384,54 @@ async function syncWithSheets() {
     sheets.setScriptUrl(url);
   }
 
+  // Filtragem idêntica à do renderTable para garantir que gravamos o que o usuário vê
+  const rawQuery = ui.searchInput.value.trim();
+  const query = normalizeText(rawQuery).replace(/[.\-]/g, '');
+  const selectedSector = ui.sectorFilter.value;
+
+  const filteredRecords = currentData.equipe.filter(p => {
+    let matchText = true;
+    if (query) {
+      const n = normalizeText(p.nome || '').replace(/[.\-]/g, '');
+      const c = String(p.cpf || '').replace(/[.\-]/g, '');
+      matchText = n.includes(query) || c.includes(query);
+    }
+    let matchSector = true;
+    if (selectedSector) matchSector = (p.setor === selectedSector);
+    return matchText && matchSector;
+  });
+
+  if (filteredRecords.length === 0) {
+    alert('Nenhum registro selecionado pelos filtros atuais.');
+    return;
+  }
+
   const metadata = {
-    name: ui.sheetNameInput.value || 'Extração PDFNice',
-    reason: ui.sheetReasonInput.value || 'Backup Automático',
-    sector: ui.sheetSectorInput.value || 'Geral', 
-    date: Array.from(currentData.datas)[0] || 'N/A'
+    name: 'Extração PDFNice',
+    reason: 'Sincronização Dashboard',
+    sector: selectedSector || 'Geral', 
+    date: Array.from(currentData.datas)[0] || new Date().toLocaleDateString('pt-BR')
   };
 
   ui.syncSheetsBtn.disabled = true;
-  ui.syncSheetsBtn.textContent = '🔄 Sincronizando...';
+  const originalText = ui.syncSheetsBtn.textContent;
+  ui.syncSheetsBtn.textContent = '🔄 Gravando...';
 
   try {
-    const recordsToSync = currentData.equipe.map(p => ({
+    const recordsToSync = filteredRecords.map(p => ({
       ...p,
-      planilha: p.arquivo || metadata.name || 'Extração PDFNice',
-      setor: p.setor || metadata.sector || 'Geral',
+      planilha: p.arquivo || 'N/A',
+      setor: p.setor || 'Geral',
       motivo: metadata.reason 
     }));
 
     await sheets.saveExtraction(metadata, recordsToSync);
-    alert('Sincronização concluída com sucesso no Google Sheets!');
+    alert(`Sincronização de ${recordsToSync.length} registros concluída com sucesso!`);
   } catch (error) {
     alert('Erro ao sincronizar: ' + error.message);
   } finally {
     ui.syncSheetsBtn.disabled = false;
-    ui.syncSheetsBtn.textContent = '☁️ Sincronizar Google Sheets';
+    ui.syncSheetsBtn.textContent = originalText;
   }
 }
 
