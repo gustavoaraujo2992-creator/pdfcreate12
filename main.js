@@ -539,13 +539,14 @@ function exportCSV() {
 
 // ─── Utility: Extract Sector from Filename ────────────────────
 function getSectorFromFilename(name) {
+  const cleanName = name.replace(/\.pdf$/i, '').replace(/\.xlsx?$/i, '');
   const clean = name.toUpperCase();
   if (clean.includes('SEDES')) return 'SEDES';
   if (clean.includes('SEAPE')) return 'SEAPE';
   if (clean.includes('PCDF')) return 'PCDF';
   if (clean.includes('DETRAN')) return 'DETRAN';
   if (clean.includes('INSS')) return 'INSS';
-  return 'GERAL';
+  return cleanName;
 }
 // ─── Add skip to dashboard button event (if we had it in HTML)
 document.addEventListener('click', (e) => {
